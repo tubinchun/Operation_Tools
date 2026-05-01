@@ -377,13 +377,20 @@ class SystemInfoPage(QWidget):
         self.kernel_val = QLabel("加载中...")
         self.arch_val = QLabel("加载中...")
 
-        for label in [self.hostname_val, self.os_val, self.kernel_val, self.arch_val]:
+        self.uptime_val = QLabel("未知")
+        self.boot_time_val = QLabel("未知")
+        self.current_time_val = QLabel("未知")
+
+        for label in [self.hostname_val, self.os_val, self.kernel_val, self.arch_val, self.uptime_val, self.boot_time_val, self.current_time_val]:
             label.setStyleSheet("font-size: 14px; color: #1d1d1f;")
 
         form_layout.addRow("主机名", self.hostname_val)
         form_layout.addRow("操作系统", self.os_val)
         form_layout.addRow("内核版本", self.kernel_val)
         form_layout.addRow("系统架构", self.arch_val)
+        form_layout.addRow("运行时间", self.uptime_val)
+        form_layout.addRow("启动时间", self.boot_time_val)
+        form_layout.addRow("当前时间", self.current_time_val)
 
         left_layout.addLayout(form_layout)
         left_layout.addStretch()
@@ -460,15 +467,49 @@ class SystemInfoPage(QWidget):
             if result.get('status') == 'success':
                 data = result.get('data', {})
                 self.hostname_val.setText(data.get('hostname', '未知'))
+                self.os_val.setText(data.get('os_version', '未知'))
                 self.kernel_val.setText(data.get('kernel', '未知'))
                 self.arch_val.setText(data.get('architecture', '未知'))
+                self.uptime_val.setText(data.get('uptime', '未知'))
+                self.boot_time_val.setText(data.get('boot_time', '未知'))
+                self.current_time_val.setText(data.get('current_time', '未知'))
 
         self.thread = WorkerThread(fetch)
         self.thread.finished.connect(on_result)
         self.thread.start()
 
     def update_stats(self):
-        pass
+        def on_cpu(result):
+            if result.get('status') == 'success':
+                cpu_percent = result.get('data', {}).get('usage_percent', 0)
+                self.cpu_bar.setValue(int(cpu_percent))
+                self.cpu_val.setText(f"{cpu_percent:.1f}%")
+
+        def on_mem(result):
+            if result.get('status') == 'success':
+                mem_percent = result.get('data', {}).get('percent', 0)
+                self.mem_bar.setValue(int(mem_percent))
+                self.mem_val.setText(f"{mem_percent:.1f}%")
+
+        def on_disk(result):
+            if result.get('status') == 'success':
+                partitions = result.get('data', {}).get('partitions', [])
+                if partitions:
+                    disk_percent = partitions[0].get('percent', 0)
+                    self.disk_bar.setValue(int(disk_percent))
+                    self.disk_val.setText(f"{disk_percent:.1f}%")
+
+        t1 = WorkerThread(self.client.get_cpu_info)
+        t1.finished.connect(on_cpu)
+        t1.start()
+
+        t2 = WorkerThread(self.client.get_memory_info)
+        t2.finished.connect(on_mem)
+        t2.start()
+
+        t3 = WorkerThread(self.client.get_disk_info)
+        t3.finished.connect(on_disk)
+        t3.start()
 
 
 class SystemStatusPage(QWidget):
@@ -548,26 +589,67 @@ class SystemStatusPage(QWidget):
     def load_status(self):
         def on_cpu(result):
             if result.get('status') == 'success':
-                self.cpu_text.setPlainText(result.get('data', {}).get('cpuinfo', ''))
+                data = result.get('data', {})
+                cpu_raw = data.get('cpuinfo_raw', '')
+                display = f"""物理核心: {data.get('physical_cores', 'N/A')}
+逻辑核心: {data.get('logical_cores', 'N/A')}
+CPU使用率: {data.get('usage_percent', 0):.1f}%
+当前频率: {data.get('frequency_current', 0):.2f} GHz
+最大频率: {data.get('frequency_max', 0):.2f} GHz
+上下文切换: {data.get('context_switches', 0):,}
+中断次数: {data.get('interrupts', 0):,}
+
+--- CPU Info ---
+{cpu_raw}"""
+                self.cpu_text.setPlainText(display)
 
         def on_mem(result):
             if result.get('status') == 'success':
-                self.mem_text.setPlainText(result.get('data', {}).get('meminfo', ''))
+                data = result.get('data', {})
+                mem_raw = data.get('meminfo_raw', '')
+                display = f"""总内存: {data.get('total_gb', 0):.2f} GB
+已使用: {data.get('used_gb', 0):.2f} GB
+可用内存: {data.get('available_gb', 0):.2f} GB
+使用率: {data.get('percent', 0):.1f}%
+
+Swap总计: {data.get('swap_total', 0) / (1024**3):.2f} GB
+Swap已用: {data.get('swap_used', 0) / (1024**3):.2f} GB
+Swap使用率: {data.get('swap_percent', 0):.1f}%
+
+--- Memory Info ---
+{mem_raw}"""
+                self.mem_text.setPlainText(display)
 
         def on_proc(result):
             if result.get('status') == 'success':
-                lines = result.get('data', {}).get('processes', '').strip().split('\n')
-                self.process_table.setRowCount(max(0, len(lines) - 1))
-                for i, line in enumerate(lines[1:], 0):
-                    parts = line.split()
-                    if len(parts) >= 11:
-                        items = [parts[0], parts[1], parts[2], parts[3], parts[5], ' '.join(parts[10:])]
-                        for j, item in enumerate(items[:6]):
-                            self.process_table.setItem(i, j, QTableWidgetItem(item))
+                proc_data = result.get('data', {}).get('processes', [])
+                if isinstance(proc_data, str):
+                    lines = proc_data.strip().split('\n')
+                    self.process_table.setRowCount(max(0, len(lines) - 1))
+                    for i, line in enumerate(lines[1:], 0):
+                        parts = line.split()
+                        if len(parts) >= 11:
+                            items = [parts[0], parts[1], parts[2], parts[3], parts[5], ' '.join(parts[10:])]
+                            for j, item in enumerate(items[:6]):
+                                self.process_table.setItem(i, j, QTableWidgetItem(item))
+                elif isinstance(proc_data, list):
+                    self.process_table.setRowCount(len(proc_data))
+                    for i, proc in enumerate(proc_data):
+                        if isinstance(proc, dict):
+                            items = [
+                                proc.get('username', ''),
+                                str(proc.get('pid', '')),
+                                f"{proc.get('cpu_percent', 0):.1f}",
+                                f"{proc.get('memory_percent', 0):.1f}",
+                                f"{proc.get('memory_rss_mb', 0):.0f} MB",
+                                proc.get('name', '')
+                            ]
+                            for j, item in enumerate(items[:6]):
+                                self.process_table.setItem(i, j, QTableWidgetItem(item))
 
         def on_svc(result):
             if result.get('status') == 'success':
-                self.service_text.setPlainText(result.get('data', {}).get('services', ''))
+                self.service_text.setPlainText(result.get('data', {}).get('systemctl_output', ''))
 
         self.t1 = WorkerThread(self.client.get_cpu_info)
         self.t1.finished.connect(on_cpu)
