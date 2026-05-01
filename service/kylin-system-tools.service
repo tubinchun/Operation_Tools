@@ -1,0 +1,13 @@
+[Unit]
+Description=Kylin System Tools Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /opt/kylin-system-tools/server/__main__.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
