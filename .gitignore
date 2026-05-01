@@ -8,3 +8,6 @@ build/
 venv/
 *.log
 .DS_Store
+push.bat
+*.deb
+output/
