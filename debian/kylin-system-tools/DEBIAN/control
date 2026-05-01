@@ -1,0 +1,22 @@
+Package: kylin-system-tools
+Version: 1.0.0
+Section: admin
+Priority: optional
+Architecture: arm64
+Depends: python3 (>= 3.6), python3-pyqt5
+Maintainer: Kylin Team <support@kylin.com>
+Description: 银河麒麟运维管理工具
+ A comprehensive system administration and maintenance tool for
+ Kylin Linux Desktop V10 SP1, providing system information monitoring,
+ service management, network configuration, user management,
+ software management, log cleanup, and security settings.
+ .
+ Features:
+  - System information and status monitoring
+  - Service management
+  - Network configuration
+  - User management
+  - Software package management
+  - Log management and cleanup
+  - Kysec security center control
+  - Command terminal

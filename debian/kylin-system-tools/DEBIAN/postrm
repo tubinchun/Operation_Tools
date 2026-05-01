@@ -1,0 +1,25 @@
+#!/bin/bash
+# postrm script for kylin-system-tools
+
+case "$1" in
+    remove|purge)
+        # 移除服务
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload 2>/dev/null || true
+        fi
+
+        # 移除配置和数据（可选）
+        if [ "$1" = "purge" ]; then
+            rm -rf /etc/kylin-system-tools 2>/dev/null || true
+            rm -rf /var/log/kylin-system-tools 2>/dev/null || true
+        fi
+        ;;
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

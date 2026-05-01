@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=银河麒麟运维管理工具
+Name[zh_CN]=银河麒麟运维管理工具
+Comment=银河麒麟系统运维管理工具
+Comment[zh_CN]=银河麒麟系统运维管理工具
+Exec=/usr/bin/kylintools-client
+Icon=/usr/share/icons/hicolor/256x256/apps/kylin-system-tools.png
+Terminal=false
+Type=Application
+Categories=System;Settings;Administration;
+Keywords=system;admin;kylin;management;tools;
+StartupNotify=true
+StartupWMClass=kylin-system-tools

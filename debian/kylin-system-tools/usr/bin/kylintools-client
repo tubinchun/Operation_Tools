@@ -1,0 +1,5 @@
+#!/bin/bash
+# kylintools-client - 启动客户端
+
+export PYTHONPATH=/usr/share/kylin-system-tools:$PYTHONPATH
+exec python3 /usr/share/kylin-system-tools/client/__main__.py "$@"
