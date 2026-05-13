@@ -31,6 +31,11 @@ class WorkerThread(QThread):
         self.func = func
         self.args = args
         self.kwargs = kwargs
+        self._is_running = True
+
+    def stop(self):
+        self._is_running = False
+        self.wait()
 
     def run(self):
         try:
@@ -78,8 +83,22 @@ class SystemInfoPage(QWidget):
     def __init__(self, client, parent=None):
         super().__init__(parent)
         self.client = client
+        self._threads = []
         self.init_ui()
         self.load_system_info()
+        # 启动定时器，每3秒刷新一次实时统计
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_stats)
+        self.timer.start(3000)
+
+    def cleanup(self):
+        """清理资源，停止线程和定时器"""
+        if hasattr(self, 'timer') and self.timer:
+            self.timer.stop()
+        # 停止所有线程
+        for thread in self._threads:
+            if thread.isRunning():
+                thread.stop()
 
     def init_ui(self):
         main_layout = QVBoxLayout()
@@ -179,122 +198,421 @@ class SystemInfoPage(QWidget):
                     root_partition = next((p for p in partitions if p.get('mountpoint') == '/'), partitions[0])
                     self.disk_bar.setValue(root_partition.get('percent', 0))
 
-        self.thread = WorkerThread(fetch)
-        self.thread.finished.connect(on_result)
-        self.thread.start()
+        thread = WorkerThread(fetch)
+        thread.finished.connect(on_result)
+        thread.start()
+        self._threads.append(thread)
+
+    def update_stats(self):
+        """定期更新实时统计数据"""
+        def fetch():
+            cpu_info = self.client.get_cpu_info()
+            mem_info = self.client.get_memory_info()
+            disk_info = self.client.get_disk_info()
+            return {'cpu': cpu_info, 'mem': mem_info, 'disk': disk_info}
+
+        def on_result(result):
+            # 更新CPU使用率
+            cpu_result = result.get('cpu', {})
+            if cpu_result.get('status') == 'success':
+                cpu_data = cpu_result.get('data', {})
+                cpu_percent = cpu_data.get('usage_percent', 0)
+                self.cpu_bar.setValue(int(cpu_percent))
+
+            # 更新内存使用率
+            mem_result = result.get('mem', {})
+            if mem_result.get('status') == 'success':
+                mem_data = mem_result.get('data', {})
+                mem_percent = mem_data.get('percent', 0)
+                self.mem_bar.setValue(int(mem_percent))
+                self.memory_val.setText(f"{mem_percent}% 已使用")
+
+            # 更新磁盘使用率
+            disk_result = result.get('disk', {})
+            if disk_result.get('status') == 'success':
+                disk_data = disk_result.get('data', {})
+                partitions = disk_data.get('partitions', [])
+                if partitions:
+                    # 使用根分区或第一个分区
+                    root_partition = next((p for p in partitions if p.get('mountpoint') == '/'), partitions[0])
+                    self.disk_bar.setValue(root_partition.get('percent', 0))
+
+        stats_thread = WorkerThread(fetch)
+        stats_thread.finished.connect(on_result)
+        stats_thread.start()
+        self._threads.append(stats_thread)
+
+
+class MiniChart(QWidget):
+    """迷你图表组件，用于显示资源使用趋势"""
+    def __init__(self, parent=None, max_points=30):
+        super().__init__(parent)
+        self.max_points = max_points
+        self.data_points = [0] * max_points
+        self.setMinimumHeight(40)
+        self.setMaximumHeight(60)
+
+    def add_value(self, value):
+        self.data_points.pop(0)
+        self.data_points.append(value)
+        self.update()
+
+    def paintEvent(self, event):
+        from PyQt5.QtGui import QPainter, QPen, QColor
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        width = self.width()
+        height = self.height()
+
+        # 绘制背景
+        painter.fillRect(self.rect(), QColor(240, 240, 240))
+
+        # 绘制网格线
+        pen = QPen(QColor(200, 200, 200))
+        pen.setWidth(1)
+        painter.setPen(pen)
+        for i in range(1, 5):
+            y = height * i / 5
+            painter.drawLine(0, int(y), width, int(y))
+
+        # 绘制数据线
+        if max(self.data_points) > 0:
+            pen = QPen(QColor(0, 150, 255))
+            pen.setWidth(2)
+            painter.setPen(pen)
+
+            step = width / (self.max_points - 1)
+            max_val = max(max(self.data_points), 100)
+
+            points = []
+            for i, val in enumerate(self.data_points):
+                x = i * step
+                y = height - (val / max_val) * height
+                points.append((int(x), int(y)))
+
+            for i in range(len(points) - 1):
+                painter.drawLine(points[i][0], points[i][1], points[i+1][0], points[i+1][1])
+
+        painter.end()
+
+
+class ResourceItem(QWidget):
+    """资源概览项组件"""
+    def __init__(self, title, icon_text=None, parent=None):
+        super().__init__(parent)
+        self.title = title
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+        layout.setSpacing(5)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        # 标题行
+        title_layout = QHBoxLayout()
+        self.title_label = QLabel(self.title)
+        self.title_label.setFont(QFont("Arial", 10, QFont.Bold))
+        self.value_label = QLabel("0%")
+        self.value_label.setFont(QFont("Arial", 10))
+        self.value_label.setAlignment(Qt.AlignRight)
+        title_layout.addWidget(self.title_label)
+        title_layout.addStretch()
+        title_layout.addWidget(self.value_label)
+        layout.addLayout(title_layout)
+
+        # 迷你图表
+        self.chart = MiniChart(self)
+        layout.addWidget(self.chart)
+
+        self.setLayout(layout)
+
+    def update_value(self, value, text=None):
+        if text:
+            self.value_label.setText(text)
+        else:
+            self.value_label.setText(f"{value}%")
+        self.chart.add_value(value)
 
 
 class SystemStatusPage(QWidget):
     def __init__(self, client, parent=None):
         super().__init__(parent)
         self.client = client
+        self._threads = []
         self.init_ui()
         self.load_status()
+        # 启动定时器，每2秒刷新一次
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.refresh_data)
+        self.timer.start(2000)
+        # 网络IO历史数据
+        self.last_net_io = None
+
+    def cleanup(self):
+        """清理资源，停止线程和定时器"""
+        if hasattr(self, 'timer') and self.timer:
+            self.timer.stop()
+        # 停止所有线程
+        for thread in self._threads:
+            if thread.isRunning():
+                thread.stop()
 
     def init_ui(self):
-        main_layout = QVBoxLayout()
+        main_layout = QHBoxLayout()
 
-        header = QLabel("系统状态监控")
-        header.setFont(QFont("Arial", 14, QFont.Bold))
-        main_layout.addWidget(header)
+        # 左侧资源概览面板
+        left_panel = QWidget()
+        left_panel.setMaximumWidth(280)
+        left_layout = QVBoxLayout()
+        left_layout.setSpacing(10)
 
-        self.tabs = QTabWidget()
+        # 处理器
+        self.cpu_item = ResourceItem("处理器")
+        left_layout.addWidget(self.cpu_item)
 
-        self.cpu_tab = QWidget()
-        cpu_layout = QVBoxLayout()
-        self.cpu_text = QTextEdit()
-        self.cpu_text.setReadOnly(True)
-        cpu_layout.addWidget(self.cpu_text)
-        self.cpu_tab.setLayout(cpu_layout)
-        self.tabs.addTab(self.cpu_tab, "CPU信息")
+        # 内存
+        self.mem_item = ResourceItem("内存")
+        left_layout.addWidget(self.mem_item)
 
-        self.mem_tab = QWidget()
-        mem_layout = QVBoxLayout()
-        self.mem_text = QTextEdit()
-        self.mem_text.setReadOnly(True)
-        mem_layout.addWidget(self.mem_text)
-        self.mem_tab.setLayout(mem_layout)
-        self.tabs.addTab(self.mem_tab, "内存信息")
+        # 交换空间
+        self.swap_item = ResourceItem("交换空间")
+        left_layout.addWidget(self.swap_item)
 
-        self.process_tab = QWidget()
-        process_layout = QVBoxLayout()
-        self.process_table = QTableWidget()
-        self.process_table.setColumnCount(6)
-        self.process_table.setHorizontalHeaderLabels(['USER', 'PID', 'CPU%', 'MEM%', 'RSS', 'COMMAND'])
-        process_layout.addWidget(self.process_table)
-        self.process_tab.setLayout(process_layout)
-        self.tabs.addTab(self.process_tab, "TOP进程")
+        # 网络历史
+        net_group = QGroupBox("网络历史")
+        net_layout = QVBoxLayout()
+        net_layout.setSpacing(5)
 
-        self.service_tab = QWidget()
-        service_layout = QVBoxLayout()
-        self.service_text = QTextEdit()
-        self.service_text.setReadOnly(True)
-        service_layout.addWidget(self.service_text)
-        self.service_tab.setLayout(service_layout)
-        self.tabs.addTab(self.service_tab, "系统服务")
+        # 接收
+        recv_layout = QHBoxLayout()
+        recv_layout.addWidget(QLabel("●"))
+        recv_layout.addWidget(QLabel("接收"))
+        recv_layout.addStretch()
+        self.recv_label = QLabel("0 KB/s")
+        recv_layout.addWidget(self.recv_label)
+        net_layout.addLayout(recv_layout)
 
-        main_layout.addWidget(self.tabs)
+        # 发送
+        send_layout = QHBoxLayout()
+        send_layout.addWidget(QLabel("●"))
+        self.send_icon = QLabel()
+        self.send_icon.setStyleSheet("color: #ff6b6b;")
+        send_layout.addWidget(QLabel("发送"))
+        send_layout.addStretch()
+        self.send_label = QLabel("0 KB/s")
+        send_layout.addWidget(self.send_label)
+        net_layout.addLayout(send_layout)
 
+        # 网络图表
+        self.net_chart = MiniChart(self)
+        net_layout.addWidget(self.net_chart)
+
+        net_group.setLayout(net_layout)
+        left_layout.addWidget(net_group)
+
+        left_layout.addStretch()
+        left_panel.setLayout(left_layout)
+
+        # 右侧进程列表
+        right_panel = QWidget()
+        right_layout = QVBoxLayout()
+
+        # 标签页
+        self.process_tabs = QTabWidget()
+
+        # 应用程序标签
+        self.apps_tab = QWidget()
+        apps_layout = QVBoxLayout()
+        self.apps_table = self.create_process_table()
+        apps_layout.addWidget(self.apps_table)
+        self.apps_tab.setLayout(apps_layout)
+        self.process_tabs.addTab(self.apps_tab, "应用程序(0)")
+
+        # 我的进程标签
+        self.my_proc_tab = QWidget()
+        my_proc_layout = QVBoxLayout()
+        self.my_proc_table = self.create_process_table()
+        my_proc_layout.addWidget(self.my_proc_table)
+        self.my_proc_tab.setLayout(my_proc_layout)
+        self.process_tabs.addTab(self.my_proc_tab, "我的进程(0)")
+
+        # 全部进程标签
+        self.all_proc_tab = QWidget()
+        all_proc_layout = QVBoxLayout()
+        self.all_proc_table = self.create_process_table()
+        all_proc_layout.addWidget(self.all_proc_table)
+        self.all_proc_tab.setLayout(all_proc_layout)
+        self.process_tabs.addTab(self.all_proc_tab, "全部进程(0)")
+
+        right_layout.addWidget(self.process_tabs)
+
+        # 刷新按钮
         btn_layout = QHBoxLayout()
-        refresh_btn = QPushButton("刷新状态")
+        refresh_btn = QPushButton("刷新")
         refresh_btn.clicked.connect(self.load_status)
         btn_layout.addWidget(refresh_btn)
         btn_layout.addStretch()
+        right_layout.addLayout(btn_layout)
 
-        main_layout.addLayout(btn_layout)
+        right_panel.setLayout(right_layout)
+
+        # 添加到主布局
+        main_layout.addWidget(left_panel, 1)
+        main_layout.addWidget(right_panel, 3)
+
         self.setLayout(main_layout)
 
+    def create_process_table(self):
+        """创建进程表格"""
+        table = QTableWidget()
+        table.setColumnCount(8)
+        table.setHorizontalHeaderLabels([
+            '进程名称', '用户名', '磁盘读写', '处理器', '进程号', '网络', '内存', '优先级'
+        ])
+        table.horizontalHeader().setStretchLastSection(True)
+        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        table.setAlternatingRowColors(True)
+        return table
+
+    def refresh_data(self):
+        """定时刷新数据"""
+        self.load_status()
+
     def load_status(self):
-        def fetch_cpu():
-            return self.client.get_cpu_info()
+        def fetch_all():
+            cpu_info = self.client.get_cpu_info()
+            mem_info = self.client.get_memory_info()
+            proc_info = self.client.get_process_list(50)
+            net_info = self.client.get_network_info()
+            return {
+                'cpu': cpu_info,
+                'mem': mem_info,
+                'proc': proc_info,
+                'net': net_info
+            }
 
-        def fetch_mem():
-            return self.client.get_memory_info()
+        def on_result(result):
+            # 更新CPU
+            cpu_result = result.get('cpu', {})
+            if cpu_result.get('status') == 'success':
+                cpu_data = cpu_result.get('data', {})
+                cpu_percent = cpu_data.get('usage_percent', 0)
+                self.cpu_item.update_value(int(cpu_percent))
 
-        def fetch_proc():
-            return self.client.get_process_list(20)
+            # 更新内存
+            mem_result = result.get('mem', {})
+            if mem_result.get('status') == 'success':
+                mem_data = mem_result.get('data', {})
+                mem_percent = mem_data.get('percent', 0)
+                total_gb = mem_data.get('total_gb', 0)
+                used_gb = mem_data.get('used_gb', 0)
+                self.mem_item.update_value(
+                    int(mem_percent),
+                    f"{used_gb:.1f}GB/{total_gb:.1f}GB"
+                )
 
-        def fetch_svc():
-            return self.client.get_service_list()
+                # 更新交换空间
+                swap_total = mem_data.get('swap_total', 0)
+                swap_used = mem_data.get('swap_used', 0)
+                if swap_total > 0:
+                    swap_percent = (swap_used / swap_total) * 100
+                    swap_total_gb = swap_total / (1024**3)
+                    swap_used_gb = swap_used / (1024**3)
+                    self.swap_item.update_value(
+                        int(swap_percent),
+                        f"{swap_used_gb:.1f}GB/{swap_total_gb:.1f}GB"
+                    )
+                else:
+                    self.swap_item.update_value(0, "0GB/0GB")
 
-        def on_cpu(result):
-            if result.get('status') == 'success':
-                self.cpu_text.setPlainText(result.get('data', {}).get('cpuinfo', ''))
+            # 更新网络
+            net_result = result.get('net', {})
+            if net_result.get('status') == 'success':
+                net_data = net_result.get('data', {})
+                bytes_recv = net_data.get('bytes_recv', 0)
+                bytes_sent = net_data.get('bytes_sent', 0)
 
-        def on_mem(result):
-            if result.get('status') == 'success':
-                self.mem_text.setPlainText(result.get('data', {}).get('meminfo', ''))
+                if self.last_net_io:
+                    recv_speed = (bytes_recv - self.last_net_io['recv']) / 2  # 2秒间隔
+                    send_speed = (bytes_sent - self.last_net_io['sent']) / 2
+                    self.recv_label.setText(f"{self.format_speed(recv_speed)}")
+                    self.send_label.setText(f"{self.format_speed(send_speed)}")
+                    # 更新网络图表（总速度）
+                    total_speed = (recv_speed + send_speed) / 1024  # KB/s
+                    self.net_chart.add_value(min(int(total_speed), 100))
 
-        def on_proc(result):
-            if result.get('status') == 'success':
-                lines = result.get('data', {}).get('processes_raw', '').strip().split('\n')
-                self.process_table.setRowCount(max(0, len(lines) - 1))
-                for i, line in enumerate(lines[1:], 0):
-                    parts = line.split()
-                    if len(parts) >= 11:
-                        items = [parts[0], parts[1], parts[2], parts[3], parts[5], ' '.join(parts[10:])]
-                        for j, item in enumerate(items[:6]):
-                            self.process_table.setItem(i, j, QTableWidgetItem(item))
+                self.last_net_io = {'recv': bytes_recv, 'sent': bytes_sent}
 
-        def on_svc(result):
-            if result.get('status') == 'success':
-                self.service_text.setPlainText(result.get('data', {}).get('services_raw', ''))
+            # 更新进程列表
+            proc_result = result.get('proc', {})
+            if proc_result.get('status') == 'success':
+                processes = proc_result.get('data', {}).get('processes', [])
+                self.update_process_tables(processes)
 
-        self.thread1 = WorkerThread(fetch_cpu)
-        self.thread1.finished.connect(on_cpu)
-        self.thread1.start()
+        thread = WorkerThread(fetch_all)
+        thread.finished.connect(on_result)
+        thread.start()
+        self._threads.append(thread)
 
-        self.thread2 = WorkerThread(fetch_mem)
-        self.thread2.finished.connect(on_mem)
-        self.thread2.start()
+    def format_speed(self, bytes_per_sec):
+        """格式化网络速度"""
+        if bytes_per_sec < 1024:
+            return f"{bytes_per_sec:.1f} B/s"
+        elif bytes_per_sec < 1024 * 1024:
+            return f"{bytes_per_sec / 1024:.1f} KB/s"
+        else:
+            return f"{bytes_per_sec / (1024 * 1024):.1f} MB/s"
 
-        self.thread3 = WorkerThread(fetch_proc)
-        self.thread3.finished.connect(on_proc)
-        self.thread3.start()
+    def update_process_tables(self, processes):
+        """更新进程表格"""
+        # 分类进程
+        apps = [p for p in processes if p.get('name', '').endswith(('.desktop', 'app', 'App'))]
+        my_procs = processes[:20]  # 简化为前20个
+        all_procs = processes[:50]  # 全部进程取前50
 
-        self.thread4 = WorkerThread(fetch_svc)
-        self.thread4.finished.connect(on_svc)
-        self.thread4.start()
+        # 更新标签页标题
+        self.process_tabs.setTabText(0, f"应用程序({len(apps)})")
+        self.process_tabs.setTabText(1, f"我的进程({len(my_procs)})")
+        self.process_tabs.setTabText(2, f"全部进程({len(all_procs)})")
+
+        # 填充表格
+        self.fill_table(self.all_proc_table, all_procs)
+        self.fill_table(self.my_proc_table, my_procs)
+        self.fill_table(self.apps_table, apps)
+
+    def fill_table(self, table, processes):
+        """填充进程表格"""
+        table.setRowCount(len(processes))
+        for i, proc in enumerate(processes):
+            # 进程名称
+            name = proc.get('name', 'Unknown')
+            table.setItem(i, 0, QTableWidgetItem(name))
+
+            # 用户名
+            username = proc.get('username', 'unknown')
+            table.setItem(i, 1, QTableWidgetItem(str(username)))
+
+            # 磁盘读写（模拟数据）
+            table.setItem(i, 2, QTableWidgetItem("0 KB/s"))
+
+            # 处理器使用率
+            cpu = proc.get('cpu_percent', 0)
+            table.setItem(i, 3, QTableWidgetItem(f"{cpu:.1f}%"))
+
+            # 进程号
+            pid = proc.get('pid', 0)
+            table.setItem(i, 4, QTableWidgetItem(str(pid)))
+
+            # 网络（模拟数据）
+            table.setItem(i, 5, QTableWidgetItem("0 KB/s"))
+
+            # 内存
+            mem_mb = proc.get('memory_rss_mb', 0)
+            table.setItem(i, 6, QTableWidgetItem(f"{mem_mb:.1f}MB"))
+
+            # 优先级
+            table.setItem(i, 7, QTableWidgetItem("普通"))
 
 
 class UserManagementPage(QWidget):
@@ -716,6 +1034,15 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("银河麒麟运维管理工具 v1.0.0")
         self.setGeometry(100, 100, 1200, 800)
         self.init_ui()
+
+    def closeEvent(self, event):
+        """重写关闭事件，确保所有线程和定时器正确清理"""
+        # 清理各个页面的资源
+        if hasattr(self, 'system_info_page') and hasattr(self.system_info_page, 'cleanup'):
+            self.system_info_page.cleanup()
+        if hasattr(self, 'system_status_page') and hasattr(self.system_status_page, 'cleanup'):
+            self.system_status_page.cleanup()
+        event.accept()
 
     def init_ui(self):
         self.statusBar().showMessage("就绪")

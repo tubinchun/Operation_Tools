@@ -189,7 +189,42 @@ class SystemInfoPage(QWidget):
         self.thread.start()
 
     def update_stats(self):
-        pass
+        """定期更新实时统计数据"""
+        def fetch():
+            cpu_info = self.client.get_cpu_info()
+            mem_info = self.client.get_memory_info()
+            disk_info = self.client.get_disk_info()
+            return {'cpu': cpu_info, 'mem': mem_info, 'disk': disk_info}
+
+        def on_result(result):
+            # 更新CPU使用率
+            cpu_result = result.get('cpu', {})
+            if cpu_result.get('status') == 'success':
+                cpu_data = cpu_result.get('data', {})
+                cpu_percent = cpu_data.get('usage_percent', 0)
+                self.cpu_bar.setValue(int(cpu_percent))
+
+            # 更新内存使用率
+            mem_result = result.get('mem', {})
+            if mem_result.get('status') == 'success':
+                mem_data = mem_result.get('data', {})
+                mem_percent = mem_data.get('percent', 0)
+                self.mem_bar.setValue(int(mem_percent))
+                self.memory_val.setText(f"{mem_percent}% 已使用")
+
+            # 更新磁盘使用率
+            disk_result = result.get('disk', {})
+            if disk_result.get('status') == 'success':
+                disk_data = disk_result.get('data', {})
+                partitions = disk_data.get('partitions', [])
+                if partitions:
+                    # 使用根分区或第一个分区
+                    root_partition = next((p for p in partitions if p.get('mountpoint') == '/'), partitions[0])
+                    self.disk_bar.setValue(root_partition.get('percent', 0))
+
+        stats_thread = WorkerThread(fetch)
+        stats_thread.finished.connect(on_result)
+        stats_thread.start()
 
 
 class SystemStatusPage(QWidget):
