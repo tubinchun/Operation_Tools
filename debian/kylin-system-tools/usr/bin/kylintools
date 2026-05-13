@@ -1,5 +1,8 @@
 #!/bin/bash
-# kylintools - 快捷启动（无参数启动GUI客户端）
+# kylintools - 银河麒麟运维管理工具启动脚本
 
-export PYTHONPATH=/usr/share/kylin-system-tools:$PYTHONPATH
-exec python3 /usr/share/kylin-system-tools/client/__main__.py "$@"
+export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+export PYTHONPATH="/usr/share/kylin-system-tools:/usr/lib/python3/dist-packages:$PYTHONPATH"
+export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib:$LD_LIBRARY_PATH"
+
+exec python3 /usr/share/kylin-system-tools/kylintools.py "$@"

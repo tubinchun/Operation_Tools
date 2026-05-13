@@ -4,20 +4,30 @@
 case "$1" in
     configure)
         # 设置权限
-        chmod 755 /usr/bin/kylintools-server
-        chmod 755 /usr/bin/kylintools-client
-        chmod 755 /usr/share/kylin-system-tools/server/__main__.py
-        chmod 755 /usr/share/kylin-system-tools/client/__main__.py
+        chmod 755 /usr/bin/kylintools
+
+        # 创建日志目录
+        mkdir -p /var/log/kylin-system-tools
+        chown root:root /var/log/kylin-system-tools
+        chmod 755 /var/log/kylin-system-tools
+
+        # 更新图标缓存
+        if command -v update-icon-caches >/dev/null 2>&1; then
+            update-icon-caches /usr/share/icons/hicolor/ 2>/dev/null || true
+        fi
+
+        # 更新桌面数据库
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database /usr/share/applications/ 2>/dev/null || true
+        fi
 
         # 启用服务（如果systemd可用）
         if command -v systemctl >/dev/null 2>&1; then
             systemctl daemon-reload 2>/dev/null || true
-            systemctl enable kylin-system-tools.service 2>/dev/null || true
         fi
 
         echo "银河麒麟运维管理工具安装完成"
-        echo "启动服务端: sudo kylintools-server"
-        echo "启动客户端: kylintools-client"
+        echo "运行命令: kylintools"
         ;;
     abort-upgrade|abort-remove|abort-deconfigure)
         ;;

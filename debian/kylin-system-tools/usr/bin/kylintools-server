@@ -1,5 +1,6 @@
 #!/bin/bash
-# kylintools-server - 启动服务端
+# kylintools-server - 旧版服务端启动脚本（保留兼容性）
 
+echo "警告：此脚本已过时，请直接运行 kylintools"
 export PYTHONPATH=/usr/share/kylin-system-tools:$PYTHONPATH
-exec python3 /usr/share/kylin-system-tools/server/__main__.py "$@"
+exec python3 /usr/share/kylin-system-tools/kylintools.py "$@"

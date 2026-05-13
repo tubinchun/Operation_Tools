@@ -27,8 +27,8 @@ mkdir -p "$OUTPUT_DIR"
 echo "[2/6] 创建DEB目录结构..."
 mkdir -p "$DEB_DIR/DEBIAN"
 mkdir -p "$DEB_DIR/usr/bin"
-mkdir -p "$DEB_DIR/usr/share/kylin-system-tools/server"
-mkdir -p "$DEB_DIR/usr/share/kylin-system-tools/client"
+mkdir -p "$DEB_DIR/usr/share/kylin-system-tools/core"
+mkdir -p "$DEB_DIR/usr/share/kylin-system-tools/ui"
 mkdir -p "$DEB_DIR/usr/share/applications"
 mkdir -p "$DEB_DIR/usr/share/icons/hicolor/256x256/apps"
 mkdir -p "$DEB_DIR/lib/systemd/system"
@@ -50,18 +50,11 @@ chmod 755 "$DEB_DIR/DEBIAN/postrm"
 
 # 复制启动脚本
 echo "[4/6] 复制启动脚本..."
-cp "$PROJECT_DIR/debian/kylin-system-tools/usr/bin/kylintools-server" "$DEB_DIR/usr/bin/"
-cp "$PROJECT_DIR/debian/kylin-system-tools/usr/bin/kylintools-client" "$DEB_DIR/usr/bin/"
 cp "$PROJECT_DIR/debian/kylin-system-tools/usr/bin/kylintools" "$DEB_DIR/usr/bin/"
-chmod 755 "$DEB_DIR/usr/bin/kylintools"*
-rm -f "$DEB_DIR/usr/bin/kylintools-"*
-
-# 复制systemd服务
-cp "$PROJECT_DIR/debian/kylin-system-tools/lib/systemd/system/kylin-system-tools.service" "$DEB_DIR/lib/systemd/system/"
+chmod 755 "$DEB_DIR/usr/bin/kylintools"
 
 # 复制桌面图标
 cp "$PROJECT_DIR/debian/kylin-system-tools/usr/share/applications/kylin-system-tools.desktop" "$DEB_DIR/usr/share/applications/"
-cp "$PROJECT_DIR/debian/kylin-system-tools/usr/share/applications/kylin-system-tools-server.desktop" "$DEB_DIR/usr/share/applications/"
 cp "$PROJECT_DIR/debian/kylin-system-tools/usr/share/icons/hicolor/256x256/apps/kylin-system-tools.svg" "$DEB_DIR/usr/share/icons/hicolor/256x256/apps/"
 
 # 复制配置文件
@@ -69,23 +62,21 @@ cp "$PROJECT_DIR/debian/kylin-system-tools/etc/kylin-system-tools/config.json" "
 
 # 复制源代码
 echo "[5/6] 复制源代码..."
-cp "$PROJECT_DIR/server/server.py" "$DEB_DIR/usr/share/kylin-system-tools/server/"
-cp "$PROJECT_DIR/server/__init__.py" "$DEB_DIR/usr/share/kylin-system-tools/server/"
-cp "$PROJECT_DIR/server/__main__.py" "$DEB_DIR/usr/share/kylin-system-tools/server/"
-cp "$PROJECT_DIR/server/mock_server.py" "$DEB_DIR/usr/share/kylin-system-tools/server/"
+cp "$PROJECT_DIR/kylintools.py" "$DEB_DIR/usr/share/kylin-system-tools/"
 
-cp "$PROJECT_DIR/client/client.py" "$DEB_DIR/usr/share/kylin-system-tools/client/"
-cp "$PROJECT_DIR/client/__init__.py" "$DEB_DIR/usr/share/kylin-system-tools/client/"
-cp "$PROJECT_DIR/client/__main__.py" "$DEB_DIR/usr/share/kylin-system-tools/client/"
-cp "$PROJECT_DIR/client/apple_ui.py" "$DEB_DIR/usr/share/kylin-system-tools/client/"
-cp "$PROJECT_DIR/client/gui.py" "$DEB_DIR/usr/share/kylin-system-tools/client/"
+# 复制核心模块
+cp "$PROJECT_DIR/core/__init__.py" "$DEB_DIR/usr/share/kylin-system-tools/core/"
+cp "$PROJECT_DIR/core/commands.py" "$DEB_DIR/usr/share/kylin-system-tools/core/"
+cp "$PROJECT_DIR/core/local_client.py" "$DEB_DIR/usr/share/kylin-system-tools/core/"
 
-cp "$PROJECT_DIR/setup.py" "$DEB_DIR/usr/share/kylin-system-tools/"
+# 复制UI模块
+cp "$PROJECT_DIR/ui/__init__.py" "$DEB_DIR/usr/share/kylin-system-tools/ui/"
+cp "$PROJECT_DIR/ui/main_window.py" "$DEB_DIR/usr/share/kylin-system-tools/ui/"
 
 # 设置Python脚本权限
-chmod 644 "$DEB_DIR/usr/share/kylin-system-tools/server/"*.py
-chmod 644 "$DEB_DIR/usr/share/kylin-system-tools/client/"*.py
-chmod 644 "$DEB_DIR/usr/share/kylin-system-tools/setup.py"
+chmod 644 "$DEB_DIR/usr/share/kylin-system-tools/"*.py
+chmod 644 "$DEB_DIR/usr/share/kylin-system-tools/core/"*.py
+chmod 644 "$DEB_DIR/usr/share/kylin-system-tools/ui/"*.py
 
 # 创建日志目录占位
 touch "$DEB_DIR/var/log/kylin-system-tools/.gitkeep"
@@ -114,6 +105,9 @@ echo ""
 echo "安装方法:"
 echo "  sudo dpkg -i $DEB_FILE"
 echo "  sudo apt-get install -f  # 如有依赖问题"
+echo ""
+echo "运行方法:"
+echo "  kylintools"
 echo ""
 echo "卸载方法:"
 echo "  sudo dpkg -P kylin-system-tools"
