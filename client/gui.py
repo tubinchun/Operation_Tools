@@ -651,6 +651,10 @@ class MainWindow(QMainWindow):
 
 def main():
     from PyQt5.QtWidgets import QApplication
+    from PyQt5.QtCore import Qt
+
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
     app = QApplication(sys.argv)
 

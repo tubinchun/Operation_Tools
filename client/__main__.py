@@ -18,6 +18,10 @@ def main():
     parser.add_argument('--port', type=int, default=29876, help='服务器端口 (默认: 29876)')
     args = parser.parse_args()
 
+    from PyQt5.QtCore import Qt
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+
     app = QApplication(sys.argv)
 
     client = KylinClient(args.host, args.port)

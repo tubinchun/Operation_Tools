@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (
     QLineEdit, QSpinBox, QCheckBox, QSplitter,
     QScrollArea, QProgressBar, QDialog, QListWidget,
     QListWidgetItem, QAbstractItemView, QTableView, QHeaderView,
-    QGridLayout, QFrame, QSizePolicy
+    QGridLayout, QFrame, QSizePolicy, QFileDialog
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot, QTimer, QPointF, QRect
 from PyQt5.QtGui import QFont, QIcon, QPalette, QColor, QPainter, QPainterPath, QLinearGradient, QPen, QBrush
@@ -310,199 +310,7 @@ class AboutDialog(QDialog):
         self.setLayout(layout)
 
 
-class SystemInfoPage(QWidget):
-    def __init__(self, client, parent=None):
-        super().__init__(parent)
-        self.client = client
-        self._threads = []
-        self._is_destroyed = False
-        self.init_ui()
-        self.load_system_info()
 
-    def cleanup(self):
-        """清理资源，停止线程"""
-        self._is_destroyed = True
-        for thread in self._threads:
-            if thread.isRunning():
-                thread.stop()
-
-    def init_ui(self):
-        main_layout = QVBoxLayout()
-        main_layout.setSpacing(20)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-
-        header_widget = QWidget()
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        
-        header_icon = QLabel()
-        header_icon.setPixmap(QIcon.fromTheme("computer").pixmap(32, 32))
-        header_layout.addWidget(header_icon)
-        
-        header = QLabel("系统信息")
-        header.setFont(QFont("Microsoft YaHei", 18, QFont.Bold))
-        header.setStyleSheet("color: #333;")
-        header_layout.addWidget(header)
-        header_layout.addStretch()
-        
-        main_layout.addWidget(header_widget)
-
-        grid_layout = QGridLayout()
-        grid_layout.setSpacing(20)
-
-        basic_card, basic_layout = self.create_info_card("基本信息", "system")
-        
-        self.hostname_val = self.create_info_label()
-        self.os_name_val = self.create_info_label()
-        self.os_version_val = self.create_info_label()
-        self.kernel_val = self.create_info_label()
-        self.kernel_arch_val = self.create_info_label()
-        self.system_bits_val = self.create_info_label()
-
-        basic_layout.addRow(self.create_label("主机名"), self.hostname_val)
-        basic_layout.addRow(self.create_label("操作系统"), self.os_name_val)
-        basic_layout.addRow(self.create_label("系统版本"), self.os_version_val)
-        basic_layout.addRow(self.create_label("内核版本"), self.kernel_val)
-        basic_layout.addRow(self.create_label("内核架构"), self.kernel_arch_val)
-        basic_layout.addRow(self.create_label("系统位数"), self.system_bits_val)
-        grid_layout.addWidget(basic_card, 0, 0)
-
-        hardware_card, hardware_layout = self.create_info_card("硬件信息", "hardware")
-
-        self.manufacturer_val = self.create_info_label()
-        self.product_version_val = self.create_info_label()
-        self.product_name_val = self.create_info_label()
-        self.serial_number_val = self.create_info_label()
-        self.cpu_model_val = self.create_info_label()
-
-        hardware_layout.addRow(self.create_label("制造商"), self.manufacturer_val)
-        hardware_layout.addRow(self.create_label("版本"), self.product_version_val)
-        hardware_layout.addRow(self.create_label("型号"), self.product_name_val)
-        hardware_layout.addRow(self.create_label("序列号"), self.serial_number_val)
-        hardware_layout.addRow(self.create_label("CPU型号"), self.cpu_model_val)
-        grid_layout.addWidget(hardware_card, 0, 1)
-
-        gpu_card, gpu_layout = self.create_info_card("显卡信息", "display")
-
-        self.gpu_name_val = self.create_info_label()
-        self.gpu_manufacturer_val = self.create_info_label()
-        self.gpu_model_val = self.create_info_label()
-        self.gpu_memory_val = self.create_info_label()
-        self.gpu_driver_val = self.create_info_label()
-
-        gpu_layout.addRow(self.create_label("显卡名称"), self.gpu_name_val)
-        gpu_layout.addRow(self.create_label("制造商"), self.gpu_manufacturer_val)
-        gpu_layout.addRow(self.create_label("型号"), self.gpu_model_val)
-        gpu_layout.addRow(self.create_label("显存"), self.gpu_memory_val)
-        gpu_layout.addRow(self.create_label("驱动"), self.gpu_driver_val)
-        grid_layout.addWidget(gpu_card, 1, 0, 1, 2)
-
-        main_layout.addLayout(grid_layout)
-
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        
-        refresh_btn = QPushButton()
-        refresh_btn.setIcon(QIcon.fromTheme("view-refresh"))
-        refresh_btn.setText("刷新信息")
-        refresh_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
-        refresh_btn.clicked.connect(self.load_system_info)
-        btn_layout.addWidget(refresh_btn)
-
-        main_layout.addLayout(btn_layout)
-        self.setLayout(main_layout)
-
-    def create_info_card(self, title, icon_name):
-        card = QFrame()
-        card.setStyleSheet(CARD_STYLE)
-        
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(SPACING_MEDIUM, SPACING_MEDIUM, SPACING_MEDIUM, SPACING_MEDIUM)
-        layout.setSpacing(SPACING_MEDIUM)
-        
-        header = QWidget()
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(SPACING_SMALL)
-        
-        icon = QLabel()
-        icon.setPixmap(QIcon.fromTheme(icon_name).pixmap(20, 20))
-        icon.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        header_layout.addWidget(icon)
-        
-        title_label = QLabel(title)
-        title_label.setFont(create_font(FONT_SIZE_MEDIUM, "semibold"))
-        title_label.setStyleSheet(f"color: {TEXT_PRIMARY};")
-        header_layout.addWidget(title_label)
-        header_layout.addStretch()
-        
-        layout.addWidget(header)
-        
-        content_layout = QFormLayout()
-        content_layout.setSpacing(12)
-        layout.addLayout(content_layout)
-        
-        return card, content_layout
-
-    def create_label(self, text):
-        label = QLabel(text + ":")
-        label.setFont(create_font(FONT_SIZE_NORMAL))
-        label.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        return label
-
-    def create_info_label(self):
-        label = QLabel("加载中...")
-        label.setFont(create_font(FONT_SIZE_NORMAL, "medium"))
-        label.setStyleSheet(f"color: {TEXT_PRIMARY};")
-        label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        return label
-
-    def load_system_info(self):
-        def fetch():
-            sys_info = self.client.get_system_info()
-            hardware_info = self.client.get_hardware_info()
-            gpu_info = self.client.get_gpu_info()
-            return {'sys': sys_info, 'hardware': hardware_info, 'gpu': gpu_info}
-
-        def on_result(result):
-            if self._is_destroyed:
-                return
-            sys_result = result.get('sys', {})
-            if sys_result.get('status') == 'success':
-                data = sys_result.get('data', {})
-                self.hostname_val.setText(data.get('hostname', '未知'))
-                self.os_name_val.setText(data.get('os_name', '银河麒麟桌面操作系统V10 SP1'))
-                self.os_version_val.setText(data.get('os_version', '未知'))
-                self.kernel_val.setText(data.get('kernel', '未知'))
-                self.kernel_arch_val.setText(data.get('architecture', '未知'))
-                self.system_bits_val.setText(data.get('bits', '64bit'))
-
-            hardware_result = result.get('hardware', {})
-            if hardware_result.get('status') == 'success':
-                hardware_data = hardware_result.get('data', {})
-                self.manufacturer_val.setText(hardware_data.get('manufacturer', '未知'))
-                self.product_version_val.setText(str(hardware_data.get('version', 'None')))
-                self.product_name_val.setText(hardware_data.get('product_name', '未知'))
-                self.serial_number_val.setText(hardware_data.get('serial_number', '未知'))
-                self.cpu_model_val.setText(hardware_data.get('cpu_model', '未知'))
-
-            gpu_result = result.get('gpu', {})
-            if gpu_result.get('status') == 'success':
-                gpu_data = gpu_result.get('data', {})
-                self.gpu_name_val.setText(gpu_data.get('name', '未知'))
-                self.gpu_manufacturer_val.setText(gpu_data.get('manufacturer', '未知'))
-                self.gpu_model_val.setText(gpu_data.get('model', '未知'))
-                self.gpu_memory_val.setText(gpu_data.get('memory', '未知'))
-                self.gpu_driver_val.setText(gpu_data.get('driver', '未知'))
-
-        def on_error(error_msg):
-            print(f"系统信息加载错误: {error_msg}")
-
-        thread = WorkerThread(fetch)
-        thread.finished.connect(on_result)
-        thread.error.connect(on_error)
-        thread.start()
-        self._threads.append(thread)
 
 
 class MiniChart(QWidget):
@@ -1266,6 +1074,7 @@ class UserManagementPage(QWidget):
         super().__init__(parent)
         self.client = client
         self._threads = []
+        self._is_destroyed = False
         self.init_ui()
         self.load_users()
 
@@ -1508,6 +1317,8 @@ class UserManagementPage(QWidget):
             return self.client.reset_user_password(username, password)
         
         def on_result(result):
+            if self._is_destroyed:
+                return
             if result.get('status') == 'success':
                 QMessageBox.information(self, "成功", result.get('message', '密码重置成功'))
                 dialog.accept()
@@ -1527,6 +1338,8 @@ class UserManagementPage(QWidget):
             return self.client.get_users()
 
         def on_result(result):
+            if self._is_destroyed:
+                return
             if result.get('status') == 'success':
                 users = result.get('data', {}).get('users_raw', '')
                 self.user_list.clear()
@@ -1545,6 +1358,8 @@ class UserManagementPage(QWidget):
             return self.client.get_login_history(username)
 
         def on_result(result):
+            if self._is_destroyed:
+                return
             if result.get('status') == 'success':
                 history = result.get('data', {}).get('login_history', '')
                 self.parse_and_display_history(history, username)
@@ -1595,6 +1410,8 @@ class UserManagementPage(QWidget):
             return self.client.get_user_info(username)
         
         def on_result(result):
+            if self._is_destroyed:
+                return
             if result.get('status') == 'success':
                 data = result.get('data', {})
                 info_text = f"用户名: {data.get('username', '未知')}\n\n"
@@ -1626,6 +1443,7 @@ class NetworkPage(QWidget):
     def __init__(self, client, parent=None):
         super().__init__(parent)
         self.client = client
+        self._is_destroyed = False
         self.init_ui()
         self.load_network_info()
 
@@ -1667,6 +1485,8 @@ class NetworkPage(QWidget):
             return self.client.get_network_info()
 
         def on_result(result):
+            if self._is_destroyed:
+                return
             if result.get('status') == 'success':
                 self.network_text.setPlainText(result.get('data', {}).get('network', ''))
 
@@ -1675,17 +1495,19 @@ class NetworkPage(QWidget):
         self.thread.start()
 
     def restart_network(self):
-        def do_restart():
+        def fetch():
             return self.client.restart_network()
 
         def on_result(result):
+            if self._is_destroyed:
+                return
             if result.get('status') == 'success':
                 QMessageBox.information(self, "成功", "网络服务已重启")
                 self.load_network_info()
             else:
                 QMessageBox.warning(self, "失败", result.get('message', '操作失败'))
 
-        self.thread = WorkerThread(do_restart)
+        self.thread = WorkerThread(fetch)
         self.thread.finished.connect(on_result)
         self.thread.start()
 
@@ -1694,6 +1516,7 @@ class SoftwarePage(QWidget):
     def __init__(self, client, parent=None):
         super().__init__(parent)
         self.client = client
+        self._is_destroyed = False
         self.init_ui()
 
     def init_ui(self):
@@ -1744,6 +1567,8 @@ class SoftwarePage(QWidget):
             return self.client.get_apt_sources()
 
         def on_result(result):
+            if self._is_destroyed:
+                return
             if result.get('status') == 'success':
                 self.sources_text.setPlainText(result.get('data', {}).get('sources', ''))
 
@@ -1756,6 +1581,8 @@ class SoftwarePage(QWidget):
             return self.client.get_installed_packages()
 
         def on_result(result):
+            if self._is_destroyed:
+                return
             if result.get('status') == 'success':
                 self.packages_text.setPlainText(result.get('data', {}).get('packages', ''))
 
@@ -1769,614 +1596,7 @@ class SoftwarePage(QWidget):
             QMessageBox.information(self, "导出", f"软件包清单包含 {len(content)} 字符")
 
 
-class SecurityPage(QWidget):
-    def __init__(self, client, parent=None):
-        super().__init__(parent)
-        self.client = client
-        self._is_destroyed = False
-        self.init_ui()
-        self.load_kysec_status()
 
-    def init_ui(self):
-        main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(SPACING_MEDIUM, SPACING_MEDIUM, SPACING_MEDIUM, SPACING_MEDIUM)
-        main_layout.setSpacing(SPACING_MEDIUM)
-
-        header_widget = QWidget()
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        
-        header_icon = QLabel()
-        header_icon.setPixmap(QIcon.fromTheme("security-high").pixmap(24, 24))
-        header_layout.addWidget(header_icon)
-        
-        header = QLabel("KySec安全管理")
-        header.setFont(create_font(FONT_SIZE_LARGE, "semibold"))
-        header.setStyleSheet(f"color: {TEXT_PRIMARY};")
-        header_layout.addWidget(header)
-        header_layout.addStretch()
-        main_layout.addWidget(header_widget)
-
-        kysec_card = QFrame()
-        kysec_card.setStyleSheet(CARD_STYLE)
-        kysec_layout = QVBoxLayout(kysec_card)
-        kysec_layout.setContentsMargins(SPACING_MEDIUM, SPACING_MEDIUM, SPACING_MEDIUM, SPACING_MEDIUM)
-        kysec_layout.setSpacing(SPACING_MEDIUM)
-
-        kysec_header = QLabel("KySec 安全状态")
-        kysec_header.setFont(create_font(FONT_SIZE_LARGE, "medium"))
-        kysec_header.setStyleSheet(f"color: {TEXT_PRIMARY};")
-        kysec_layout.addWidget(kysec_header)
-
-        status_frame = QFrame()
-        status_layout = QHBoxLayout(status_frame)
-        status_layout.setContentsMargins(0, 0, 0, 0)
-        status_layout.setSpacing(SPACING_MEDIUM)
-
-        status_label = QLabel("当前状态:")
-        status_label.setFont(create_font(FONT_SIZE_NORMAL))
-        status_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        status_layout.addWidget(status_label)
-
-        self.kysec_status_label = QLabel("加载中...")
-        self.kysec_status_label.setFont(create_font(FONT_SIZE_LARGE, "bold"))
-        status_layout.addWidget(self.kysec_status_label)
-        status_layout.addStretch()
-        kysec_layout.addWidget(status_frame)
-
-        status_detail = QFrame()
-        status_detail_layout = QFormLayout(status_detail)
-        status_detail_layout.setContentsMargins(0, 0, 0, 0)
-        status_detail_layout.setSpacing(SPACING_SMALL)
-
-        raw_label = QLabel("原始输出:")
-        raw_label.setFont(create_font(FONT_SIZE_NORMAL))
-        raw_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        status_detail_layout.addRow(raw_label)
-
-        self.kysec_raw = QTextEdit()
-        self.kysec_raw.setReadOnly(True)
-        self.kysec_raw.setMaximumHeight(100)
-        self.kysec_raw.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: {BACKGROUND_SECONDARY};
-                border-radius: {CORNER_BUTTON}px;
-                border: 1px solid {DIVIDER};
-                padding: 8px;
-                font-family: 'Courier New', monospace;
-                font-size: {FONT_SIZE_SMALL}px;
-                color: {TEXT_PRIMARY};
-            }}
-        """)
-        self.kysec_raw.setPlaceholderText("命令原始输出将显示在这里")
-        status_detail_layout.addRow(self.kysec_raw)
-        kysec_layout.addWidget(status_detail)
-
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-
-        refresh_btn = QPushButton()
-        refresh_btn.setIcon(QIcon.fromTheme("view-refresh"))
-        refresh_btn.setText("刷新状态")
-        refresh_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
-        refresh_btn.clicked.connect(self.load_kysec_status)
-        btn_layout.addWidget(refresh_btn)
-
-        self.enable_btn = QPushButton()
-        self.enable_btn.setIcon(QIcon.fromTheme("check"))
-        self.enable_btn.setText("开启")
-        self.enable_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
-        self.enable_btn.clicked.connect(lambda: self.set_kysec('enable'))
-        btn_layout.addWidget(self.enable_btn)
-
-        self.disable_btn = QPushButton()
-        self.disable_btn.setIcon(QIcon.fromTheme("x"))
-        self.disable_btn.setText("关闭")
-        self.disable_btn.setStyleSheet(DANGER_BUTTON_STYLE)
-        self.disable_btn.clicked.connect(lambda: self.set_kysec('disable'))
-        btn_layout.addWidget(self.disable_btn)
-
-        kysec_layout.addLayout(btn_layout)
-
-        main_layout.addWidget(kysec_card)
-        main_layout.addStretch()
-
-        self.setLayout(main_layout)
-
-    def load_kysec_status(self):
-        def fetch():
-            return self.client.get_kysec_status()
-
-        def on_result(result):
-            if self._is_destroyed:
-                return
-            if result.get('status') == 'success':
-                data = result.get('data', {})
-                status = data.get('kysec', '未知').strip()
-                raw_output = data.get('raw', '')
-                
-                if status.lower() == 'disabled':
-                    self.kysec_status_label.setText("disabled")
-                    self.kysec_status_label.setStyleSheet(f"color: {MAC_RED}; font-weight: bold; font-size: 16px; padding: 4px 12px; background-color: {BACKGROUND_SECONDARY}; border-radius: 8px;")
-                    self.enable_btn.setEnabled(True)
-                    self.disable_btn.setEnabled(False)
-                elif status.lower() == 'enabled':
-                    self.kysec_status_label.setText("enabled")
-                    self.kysec_status_label.setStyleSheet(f"color: {MAC_GREEN}; font-weight: bold; font-size: 16px; padding: 4px 12px; background-color: {BACKGROUND_SECONDARY}; border-radius: 8px;")
-                    self.enable_btn.setEnabled(False)
-                    self.disable_btn.setEnabled(True)
-                else:
-                    self.kysec_status_label.setText(status)
-                    self.kysec_status_label.setStyleSheet(f"color: {MAC_ORANGE}; font-weight: bold; font-size: 16px; padding: 4px 12px; background-color: {BACKGROUND_SECONDARY}; border-radius: 8px;")
-                    self.enable_btn.setEnabled(True)
-                    self.disable_btn.setEnabled(True)
-                
-                self.kysec_raw.setPlainText(raw_output if raw_output else "无原始输出")
-
-        self.thread = WorkerThread(fetch)
-        self.thread.finished.connect(on_result)
-        self.thread.start()
-
-    def set_kysec(self, action):
-        def do_set():
-            return self.client.set_kysec(action)
-
-        def on_result(result):
-            if self._is_destroyed:
-                return
-            if result.get('status') == 'success':
-                message = f"KySec 已{action}"
-                if result.get('need_reboot'):
-                    message += "\n\n注意：设置需要重启系统后才生效"
-                QMessageBox.information(self, "成功", message)
-                self.load_kysec_status()
-            else:
-                QMessageBox.warning(self, "失败", result.get('message', '操作失败'))
-
-        self.thread = WorkerThread(do_set)
-        self.thread.finished.connect(on_result)
-        self.thread.start()
-
-
-class LogPage(QWidget):
-    def __init__(self, client, parent=None):
-        super().__init__(parent)
-        self.client = client
-        self.current_logs = []
-        self.current_log_type = 'system'
-        self._threads = []
-        self._is_destroyed = False
-        self.init_ui()
-        self.load_and_analyze_logs()
-
-    def init_ui(self):
-        main_layout = QHBoxLayout()
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-
-        sidebar = QFrame()
-        sidebar.setFixedWidth(180)
-        sidebar.setStyleSheet(f"""
-            QFrame {{
-                background-color: {BACKGROUND_SECONDARY};
-                border-right: 1px solid {DIVIDER};
-            }}
-        """)
-        sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(0, 0, 0, 0)
-        sidebar_layout.setSpacing(0)
-
-        sidebar_header = QFrame()
-        sidebar_header.setStyleSheet(f"background-color: {MAC_BLUE};")
-        header_layout = QVBoxLayout(sidebar_header)
-        header_layout.setContentsMargins(20, 20, 20, 20)
-        
-        header_title = QLabel("日志查看器")
-        header_title.setFont(create_font(FONT_SIZE_MEDIUM, "semibold"))
-        header_title.setStyleSheet("color: white;")
-        header_layout.addWidget(header_title)
-        
-        count_label = QLabel("12076 条日志")
-        count_label.setFont(create_font(FONT_SIZE_SMALL))
-        count_label.setStyleSheet("color: rgba(255,255,255,0.8);")
-        header_layout.addWidget(count_label)
-        sidebar_layout.addWidget(sidebar_header)
-
-        self.nav_buttons = {}
-        nav_items = [
-            ("系统日志", "system-log", True),
-            ("启动日志", "system-boot"),
-            ("登录日志", "system-users"),
-            ("应用日志", "application-x-executable"),
-            ("麒麟安全", "security-high"),
-            ("溯源日志", "history"),
-            ("审计日志", "file-text"),
-        ]
-        
-        for name, icon_name, default_active in [(item[0], item[1], item[2] if len(item) > 2 else False) for item in nav_items]:
-            btn = QPushButton()
-            btn.setIcon(QIcon.fromTheme(icon_name))
-            btn.setText(name)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: transparent;
-                    color: {TEXT_SECONDARY};
-                    border: none;
-                    text-align: left;
-                    padding: 12px 20px;
-                    font-family: {FONT_FAMILY};
-                    font-size: {FONT_SIZE_NORMAL}px;
-                    border-left: 3px solid transparent;
-                }}
-                QPushButton:hover {{
-                    background-color: {BACKGROUND_HOVER};
-                    color: {TEXT_PRIMARY};
-                }}
-                QPushButton:checked {{
-                    background-color: {BACKGROUND_MAIN};
-                    color: {MAC_BLUE};
-                    border-left: 3px solid {MAC_BLUE};
-                }}
-            """)
-            btn.setCheckable(True)
-            btn.setChecked(default_active)
-            btn.clicked.connect(lambda checked, n=name: self.on_nav_click(n))
-            self.nav_buttons[name] = btn
-            sidebar_layout.addWidget(btn)
-
-        sidebar_layout.addStretch()
-        main_layout.addWidget(sidebar)
-
-        content = QFrame()
-        content.setStyleSheet(f"background-color: {BACKGROUND_MAIN};")
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-
-        top_bar = QFrame()
-        top_bar_layout = QHBoxLayout(top_bar)
-        top_bar_layout.setContentsMargins(20, 15, 20, 15)
-        top_bar_layout.setSpacing(15)
-
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("搜索")
-        self.search_input.setStyleSheet(LINE_EDIT_STYLE)
-        self.search_input.setFixedWidth(300)
-        search_action = QAction(QIcon.fromTheme("search"), "", self.search_input)
-        self.search_input.addAction(search_action, QLineEdit.LeadingPosition)
-        top_bar_layout.addWidget(self.search_input)
-
-        self.level_tags = []
-        level_items = [("全部", "all"), ("正常", "INFO"), ("错误", "ERROR"), ("注意", "WARNING")]
-        for label, level in level_items:
-            tag = QPushButton(label)
-            tag.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {BACKGROUND_SECONDARY};
-                    color: {TEXT_SECONDARY};
-                    border: none;
-                    border-radius: 16px;
-                    padding: 6px 16px;
-                    font-family: {FONT_FAMILY};
-                    font-size: {FONT_SIZE_SMALL}px;
-                }}
-                QPushButton:hover {{
-                    background-color: {BACKGROUND_HOVER};
-                }}
-                QPushButton:checked {{
-                    background-color: {MAC_BLUE};
-                    color: white;
-                }}
-            """)
-            tag.setCheckable(True)
-            tag.setChecked(level == "all")
-            tag.clicked.connect(lambda checked, l=level: self.on_level_filter(l))
-            self.level_tags.append((tag, level))
-            top_bar_layout.addWidget(tag)
-
-        top_bar_layout.addStretch()
-
-        self.date_from = QLineEdit()
-        self.date_from.setPlaceholderText("2026/05/14 00:00:00")
-        self.date_from.setStyleSheet(LINE_EDIT_STYLE)
-        self.date_from.setFixedWidth(150)
-        top_bar_layout.addWidget(self.date_from)
-
-        top_bar_layout.addWidget(QLabel("-"))
-
-        self.date_to = QLineEdit()
-        self.date_to.setPlaceholderText("2026/05/14 23:59:59")
-        self.date_to.setStyleSheet(LINE_EDIT_STYLE)
-        self.date_to.setFixedWidth(150)
-        top_bar_layout.addWidget(self.date_to)
-
-        refresh_btn = QPushButton()
-        refresh_btn.setIcon(QIcon.fromTheme("view-refresh"))
-        refresh_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                padding: 8px;
-            }}
-            QPushButton:hover {{
-                background-color: {BACKGROUND_HOVER};
-                border-radius: {CORNER_BUTTON}px;
-            }}
-        """)
-        refresh_btn.clicked.connect(self.load_and_analyze_logs)
-        top_bar_layout.addWidget(refresh_btn)
-        content_layout.addWidget(top_bar)
-
-        self.log_table = QTableWidget()
-        self.log_table.setColumnCount(4)
-        self.log_table.setHorizontalHeaderLabels(["级别", "时间", "进程", "信息"])
-        self.log_table.setStyleSheet(f"""
-            QTableWidget {{
-                background-color: {BACKGROUND_MAIN};
-                border: none;
-                font-family: {FONT_FAMILY};
-                font-size: {FONT_SIZE_SMALL}px;
-            }}
-            QHeaderView::section {{
-                background-color: {BACKGROUND_SECONDARY};
-                padding: 10px;
-                border: none;
-                border-bottom: 1px solid {DIVIDER};
-                font-weight: 500;
-                color: {TEXT_SECONDARY};
-                text-align: left;
-            }}
-            QTableWidget::item {{
-                padding: 10px;
-                border-bottom: 1px solid {DIVIDER};
-            }}
-            QTableWidget::item:hover {{
-                background-color: {BACKGROUND_HOVER};
-            }}
-        """)
-        self.log_table.horizontalHeader().setStretchLastSection(True)
-        self.log_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.log_table.setShowGrid(False)
-        content_layout.addWidget(self.log_table, stretch=1)
-
-        main_layout.addWidget(content, stretch=1)
-        self.setLayout(main_layout)
-
-    def on_nav_click(self, name):
-        for btn_name, btn in self.nav_buttons.items():
-            btn.setChecked(btn_name == name)
-        
-        type_mapping = {
-            '系统日志': 'system',
-            '启动日志': 'boot',
-            '登录日志': 'login',
-            '应用日志': 'application',
-            '麒麟安全': 'security',
-            '溯源日志': 'trace',
-            '审计日志': 'audit',
-        }
-        self.current_log_type = type_mapping.get(name, 'system')
-        self.load_and_analyze_logs()
-
-    def on_level_filter(self, level):
-        for tag, lvl in self.level_tags:
-            tag.setChecked(lvl == level)
-        self.apply_filters()
-
-    def create_stat_widget(self, label, icon_name, color):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-
-        icon = QLabel()
-        icon.setPixmap(QIcon.fromTheme(icon_name).pixmap(20, 20))
-        icon.setStyleSheet(f"color: {color};")
-        layout.addWidget(icon, alignment=Qt.AlignCenter)
-
-        count = QLabel("0")
-        count.setFont(create_font(FONT_SIZE_LARGE, "bold"))
-        count.setStyleSheet(f"color: {color};")
-        layout.addWidget(count, alignment=Qt.AlignCenter)
-
-        label_lbl = QLabel(label)
-        label_lbl.setFont(create_font(FONT_SIZE_SMALL))
-        label_lbl.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        layout.addWidget(label_lbl, alignment=Qt.AlignCenter)
-
-        return widget
-
-    def load_and_analyze_logs(self):
-        def fetch():
-            return self.client.get_log_by_type(self.current_log_type, 500)
-
-        def on_result(result):
-            if self._is_destroyed:
-                return
-            if result.get('status') == 'success':
-                logs = result.get('data', {}).get('logs', '')
-                self.analyze_and_display(logs)
-
-        self.thread = WorkerThread(fetch)
-        self._threads.append(self.thread)
-        self.thread.finished.connect(on_result)
-        self.thread.start()
-
-    def analyze_and_display(self, logs):
-        if self._is_destroyed:
-            return
-        filters = self.get_current_filters()
-        result = self.client.analyze_logs(logs, filters)
-        
-        if result.get('status') == 'success':
-            data = result.get('data', {})
-            self.current_logs = data.get('error_logs', []) + data.get('warning_logs', []) + data.get('info_logs', []) + data.get('other_logs', [])
-            self.update_log_table(data)
-
-    def get_current_filters(self):
-        if self._is_destroyed:
-            return {}
-        level_filter = "all"
-        for tag, level in self.level_tags:
-            try:
-                if tag.isChecked():
-                    level_filter = level
-                    break
-            except RuntimeError:
-                break
-        
-        keyword = ""
-        try:
-            keyword = self.search_input.text().strip()
-        except RuntimeError:
-            pass
-        
-        filters = {}
-        if level_filter != 'all':
-            filters['level'] = level_filter
-        
-        if keyword:
-            filters['keywords'] = [keyword]
-        
-        return filters
-
-    def apply_filters(self):
-        def fetch():
-            return self.client.get_system_logs(500)
-
-        def on_result(result):
-            if self._is_destroyed:
-                return
-            if result.get('status') == 'success':
-                logs = result.get('data', {}).get('logs', '')
-                self.analyze_and_display(logs)
-
-        self.thread = WorkerThread(fetch)
-        self._threads.append(self.thread)
-        self.thread.finished.connect(on_result)
-        self.thread.start()
-
-    def reset_filters(self):
-        self.search_input.clear()
-        for tag, level in self.level_tags:
-            tag.setChecked(level == "all")
-        self.apply_filters()
-
-    def update_log_table(self, data):
-        self.log_table.setRowCount(0)
-        
-        all_logs = []
-        all_logs.extend(data.get('info_logs', []))
-        all_logs.extend(data.get('warning_logs', []))
-        all_logs.extend(data.get('error_logs', []))
-        all_logs.extend(data.get('other_logs', []))
-        
-        for log in all_logs:
-            row = self.log_table.rowCount()
-            self.log_table.insertRow(row)
-            
-            level = 'ERROR' if log.get('is_error') else 'WARNING' if log.get('is_warning') else 'INFO'
-            
-            level_item = QTableWidgetItem()
-            icon_label = QLabel()
-            if level == 'ERROR':
-                icon_label.setPixmap(QIcon.fromTheme("dialog-error").pixmap(16, 16))
-                icon_label.setStyleSheet(f"color: {MAC_RED};")
-            elif level == 'WARNING':
-                icon_label.setPixmap(QIcon.fromTheme("dialog-warning").pixmap(16, 16))
-                icon_label.setStyleSheet(f"color: {MAC_ORANGE};")
-            else:
-                icon_label.setPixmap(QIcon.fromTheme("dialog-information").pixmap(16, 16))
-                icon_label.setStyleSheet(f"color: {MAC_GREEN};")
-            self.log_table.setCellWidget(row, 0, icon_label)
-            
-            timestamp = log.get('timestamp', '')
-            self.log_table.setItem(row, 1, QTableWidgetItem(timestamp))
-            
-            process = log.get('process', '')
-            self.log_table.setItem(row, 2, QTableWidgetItem(process))
-            
-            message = log.get('message', '')[:150] + '...' if len(log.get('message', '')) > 150 else log.get('message', '')
-            self.log_table.setItem(row, 3, QTableWidgetItem(message))
-        
-        self.log_table.resizeColumnsToContents()
-        self.log_table.setColumnWidth(0, 40)
-        self.log_table.setColumnWidth(1, 160)
-        self.log_table.setColumnWidth(2, 120)
-
-    def show_export_dialog(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("导出日志")
-        dialog.setFixedSize(350, 180)
-        
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(SPACING_MEDIUM, SPACING_MEDIUM, SPACING_MEDIUM, SPACING_MEDIUM)
-        layout.setSpacing(SPACING_MEDIUM)
-        
-        format_label = QLabel("导出格式:")
-        format_label.setFont(create_font(FONT_SIZE_NORMAL))
-        format_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        layout.addWidget(format_label)
-        
-        format_combo = QComboBox()
-        format_combo.addItems(['TXT', 'JSON', 'CSV'])
-        format_combo.setStyleSheet(LINE_EDIT_STYLE)
-        layout.addWidget(format_combo)
-        
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        
-        cancel_btn = QPushButton("取消")
-        cancel_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
-        cancel_btn.clicked.connect(dialog.reject)
-        btn_layout.addWidget(cancel_btn)
-        
-        ok_btn = QPushButton("导出")
-        ok_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
-        ok_btn.clicked.connect(lambda: self.export_logs(format_combo.currentText().lower(), dialog))
-        btn_layout.addWidget(ok_btn)
-        
-        layout.addLayout(btn_layout)
-        dialog.exec_()
-
-    def export_logs(self, format_type, dialog):
-        if not self.current_logs:
-            QMessageBox.warning(self, "警告", "没有可导出的日志")
-            return
-        
-        result = self.client.export_logs(self.current_logs, format_type)
-        
-        if result.get('status') == 'success':
-            path = result.get('data', {}).get('path', '')
-            QMessageBox.information(self, "成功", f"日志已导出到:\n{path}")
-            dialog.accept()
-        else:
-            QMessageBox.error(self, "错误", result.get('message', '导出失败'))
-
-    def cleanup_logs(self):
-        if QMessageBox.question(self, "确认清理", "确定要清理系统日志吗？", 
-                                QMessageBox.Yes | QMessageBox.No) == QMessageBox.No:
-            return
-        
-        def do_cleanup():
-            return self.client.cleanup_logs()
-
-        def on_result(result):
-            if result.get('status') == 'success':
-                QMessageBox.information(self, "成功", "日志清理完成")
-                self.load_and_analyze_logs()
-            else:
-                QMessageBox.error(self, "错误", result.get('message', '清理失败'))
-
-        self.thread = WorkerThread(fetch=do_cleanup)
-        self._threads.append(self.thread)
-        self.thread.finished.connect(on_result)
-        self.thread.start()
-
-    def cleanup(self):
-        self._is_destroyed = True
-        for t in self._threads:
-            t.stop()
-        self._threads = []
 
 
 class HostsEditorDialog(QDialog):
@@ -2507,159 +1727,545 @@ ff02::2 ip6-allrouters"""
             QMessageBox.error(self, "错误", f"保存失败: {str(e)}")
 
 
-class PrinterRepairDialog(QDialog):
-    status_signal = pyqtSignal(str, str)
-    finished_signal = pyqtSignal(dict)
+class InfoCard(QFrame):
+    def __init__(self, title, icon_name, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: {BACKGROUND_SECONDARY};
+                border-radius: 12px;
+                border: none;
+            }}
+        """)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(20, 20, 20, 20)
+        self.layout.setSpacing(16)
+        
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(10)
+        
+        icon_label = QLabel()
+        icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(22, 22))
+        header_layout.addWidget(icon_label)
+        
+        title_label = QLabel(title)
+        title_label.setFont(create_font(FONT_SIZE_NORMAL, "semibold"))
+        title_label.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        
+        self.layout.addLayout(header_layout)
+        
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setSpacing(10)
+        self.layout.addLayout(self.content_layout)
     
+    def add_info_row(self, label_text, value_text, highlight=False):
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(12)
+        
+        label = QLabel(label_text)
+        label.setFont(create_font(FONT_SIZE_SMALL))
+        label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        label.setFixedWidth(100)
+        label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_layout.addWidget(label)
+        
+        value = QLabel(value_text)
+        value.setFont(create_font(FONT_SIZE_SMALL))
+        value.setStyleSheet(f"color: {MAC_GREEN if highlight else TEXT_PRIMARY};")
+        value.setWordWrap(True)
+        value.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        row_layout.addWidget(value, stretch=1)
+        
+        self.content_layout.addWidget(row_widget)
+
+
+class SystemInfoDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("修复打印机无法启动")
-        self.setFixedSize(600, 450)
+        self.setWindowTitle("系统信息查看")
+        self.setMinimumSize(900, 700)
+        self.resize(900, 700)
         self.setStyleSheet(f"background-color: {BACKGROUND_MAIN};")
-        self.is_repairing = False
+        self.client = LocalClient()
+        self._is_destroyed = False
         self.init_ui()
-        self.status_signal.connect(self.append_status)
-        self.finished_signal.connect(self.on_repair_finished)
+        self.load_system_info()
 
     def init_ui(self):
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(24, 24, 24, 24)
         main_layout.setSpacing(20)
 
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        
         header_icon = QLabel()
-        header_icon.setPixmap(QIcon.fromTheme("printer").pixmap(48, 48))
-        header_icon.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(header_icon)
+        header_icon.setPixmap(QIcon.fromTheme("computer").pixmap(36, 36))
+        header_layout.addWidget(header_icon)
+        
+        header_label = QLabel("系统信息")
+        header_label.setFont(create_font(FONT_SIZE_LARGE, "semibold"))
+        header_label.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        header_layout.addWidget(header_label)
+        header_layout.addStretch()
+        
+        self.refresh_btn = QPushButton()
+        self.refresh_btn.setIcon(QIcon.fromTheme("view-refresh"))
+        self.refresh_btn.setText("刷新")
+        self.refresh_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        self.refresh_btn.clicked.connect(self.load_system_info)
+        header_layout.addWidget(self.refresh_btn)
+        
+        main_layout.addWidget(header_widget)
 
-        title_label = QLabel("修复打印机无法启动")
-        title_label.setFont(create_font(FONT_SIZE_LARGE, "semibold"))
-        title_label.setStyleSheet(f"color: {TEXT_PRIMARY};")
-        title_label.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(title_label)
-
-        desc_label = QLabel("本工具将修复 CUPS 打印机服务配置问题。\n执行修复前请确保已连接网络。")
-        desc_label.setFont(create_font(FONT_SIZE_NORMAL))
-        desc_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        desc_label.setAlignment(Qt.AlignCenter)
-        desc_label.setWordWrap(True)
-        main_layout.addWidget(desc_label)
-
-        self.status_text = QTextEdit()
-        self.status_text.setReadOnly(True)
-        self.status_text.setFont(QFont("Consolas", 10))
-        self.status_text.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: {BACKGROUND_SECONDARY};
-                border: 1px solid {DIVIDER};
-                border-radius: {CORNER_BUTTON}px;
-                padding: 12px;
-                color: {TEXT_PRIMARY};
-            }}
-        """)
-        main_layout.addWidget(self.status_text, stretch=1)
-
-        self.result_label = QLabel("")
-        self.result_label.setFont(create_font(FONT_SIZE_NORMAL, "medium"))
-        self.result_label.setAlignment(Qt.AlignCenter)
-        self.result_label.setStyleSheet(f"color: {MAC_GREEN}; padding: 8px;")
-        main_layout.addWidget(self.result_label)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self.scroll_content = QWidget()
+        self.scroll_layout = QGridLayout(self.scroll_content)
+        self.scroll_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll_layout.setSpacing(16)
+        self.scroll_area.setWidget(self.scroll_content)
+        main_layout.addWidget(self.scroll_area, stretch=1)
 
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-
-        self.repair_btn = QPushButton("开始修复")
-        self.repair_btn.setIcon(QIcon.fromTheme("system-run"))
-        self.repair_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
-        self.repair_btn.setMinimumWidth(120)
-        self.repair_btn.clicked.connect(self.start_repair)
-        btn_layout.addWidget(self.repair_btn)
-
+        
+        copy_btn = QPushButton()
+        copy_btn.setIcon(QIcon.fromTheme("edit-copy"))
+        copy_btn.setText("复制信息")
+        copy_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        copy_btn.clicked.connect(self.copy_info)
+        btn_layout.addWidget(copy_btn)
+        
         close_btn = QPushButton("关闭")
-        close_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
-        close_btn.setMinimumWidth(80)
+        close_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
         close_btn.clicked.connect(self.accept)
         btn_layout.addWidget(close_btn)
-
+        
         main_layout.addLayout(btn_layout)
         self.setLayout(main_layout)
 
-    @pyqtSlot(str, str)
-    def append_status(self, text, color=None):
-        if color:
-            self.status_text.append(f'<span style="color: {color}">{text}</span>')
-        else:
-            self.status_text.append(text)
-        self.status_text.verticalScrollBar().setValue(
-            self.status_text.verticalScrollBar().maximum()
-        )
+        self.hardware_card = InfoCard("硬件信息", "hardware")
+        self.software_card = InfoCard("软件信息", "software")
+        self.storage_card = InfoCard("存储信息", "harddisk")
+        self.network_card = InfoCard("网络信息", "network")
+        
+        self.scroll_layout.addWidget(self.hardware_card, 0, 0)
+        self.scroll_layout.addWidget(self.software_card, 0, 1)
+        self.scroll_layout.addWidget(self.storage_card, 1, 0)
+        self.scroll_layout.addWidget(self.network_card, 1, 1)
+        
+        self.scroll_layout.setColumnStretch(0, 1)
+        self.scroll_layout.setColumnStretch(1, 1)
+        
+        self.raw_output = ""
 
-    def start_repair(self):
-        if self.is_repairing:
-            return
-
-        self.is_repairing = True
-        self.repair_btn.setEnabled(False)
-        self.result_label.setText("")
-        self.result_label.setStyleSheet(f"color: {MAC_ORANGE}; padding: 8px;")
-        self.result_label.setText("正在修复中，请稍候...")
-        self.status_text.clear()
-        self.status_signal.emit("开始修复打印机服务...", None)
-        self.status_signal.emit("-" * 50, TEXT_SECONDARY)
-
-        def do_repair():
-            results = []
+    def parse_system_info(self, output):
+        import re
+        
+        def remove_ansi_escape_sequences(text):
+            # 处理 ANSI 转义序列
+            ansi_escape = re.compile(r'(?:\x1B|\033)\[(?:\d+;)*\d*[a-zA-Z]')
+            text = ansi_escape.sub('', text)
+            # 处理其他控制字符（除了换行和制表符）
+            text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+            # 移除回车符
+            text = text.replace('\r', '')
+            return text
+        
+        # 清理ANSI转义序列，但保留原始空格格式
+        output = remove_ansi_escape_sequences(output)
+        
+        # 调试输出，保留原始输出的副本
+        self.raw_output = output
+        
+        info = {
+            'system_model': 'Unknown',
+            'serial_number': 'Unknown',
+            'cpu_model': 'Unknown',
+            'cpu_cores': 'Unknown',
+            'cpu_usage': 'Unknown',
+            'memory_total': 'Unknown',
+            'memory_free': 'Unknown',
+            'gpu': 'Unknown',
+            'disk_size': 'Unknown',
+            'disk_free': 'Unknown',
+            'disks': [],
+            'network': [],
+            'system_id': 'Unknown',
+            'kylin_serial': 'Unknown',
+            'service_status': 'Unknown',
+            'kernel': 'Unknown',
+            'install_time': 'Unknown',
+            'build_id': 'Unknown',
+            'hwid': 'Unknown',
+            'register_code': 'Unknown',
+            'activation': 'Unknown'
+        }
+        
+        # 用于检测是否进入了磁盘信息区域
+        in_disk_section = False
+        
+        for line in output.split('\n'):
+            original_line = line
+            line = line.strip()
             
-            self.status_signal.emit("步骤 1: 备份并恢复 CUPS 配置文件...", None)
-            result1 = subprocess.run(
-                ['sudo', 'cp', '/usr/share/cups/cupsd.conf.default', '/etc/cups/cupsd.conf'],
-                capture_output=True, text=True
-            )
-            if result1.returncode == 0:
-                self.status_signal.emit("✓ CUPS 配置文件已恢复", MAC_GREEN)
-                results.append(True)
-            else:
-                self.status_signal.emit("✗ CUPS 配置文件恢复失败: " + (result1.stderr or "未知错误"), MAC_RED)
-                results.append(False)
-
-            self.status_signal.emit("", None)
-            self.status_signal.emit("步骤 2: 重启 CUPS 服务...", None)
-            result2 = subprocess.run(
-                ['sudo', 'systemctl', 'restart', 'cups'],
-                capture_output=True, text=True
-            )
-            if result2.returncode == 0:
-                self.status_signal.emit("✓ CUPS 服务已重启", MAC_GREEN)
-                results.append(True)
-            else:
-                self.status_signal.emit("✗ CUPS 服务重启失败: " + (result2.stderr or "未知错误"), MAC_RED)
-                results.append(False)
-
-            self.status_signal.emit("", None)
-            self.status_signal.emit("-" * 50, TEXT_SECONDARY)
+            if not line:
+                continue
             
-            if all(results):
-                self.status_signal.emit("✓ 打印机服务修复完成！", MAC_GREEN)
-                self.finished_signal.emit({'status': 'success', 'message': '打印机服务修复成功'})
-            else:
-                self.status_signal.emit("✗ 修复过程中出现错误，请检查上述信息", MAC_RED)
-                self.finished_signal.emit({'status': 'error', 'message': '修复过程中出现错误'})
+            # 检测是否进入磁盘信息区域
+            if '磁盘名称' in line and '磁盘大小' in line:
+                in_disk_section = True
+                continue
+            
+            # 检测是否离开磁盘信息区域（分隔线之后的内容）
+            if in_disk_section and ('-------------------------' in line or '软件信息' in line):
+                in_disk_section = False
+                continue
+            
+            # 主机型号和序列号在同一行（处理各种格式）
+            if '主机型号' in original_line:
+                # 使用原始行进行解析，避免strip()导致问题
+                cleaned_line = re.sub(r'^\s*\d+、', '', original_line)
+                
+                # 查找主机型号开始位置
+                model_key = '主机型号：'
+                model_start = cleaned_line.find(model_key)
+                if model_start >= 0:
+                    model_start += len(model_key)
+                    sn_key = '主机SN码：'
+                    sn_pos = cleaned_line.find(sn_key)
+                    if sn_pos > model_start:
+                        info['system_model'] = cleaned_line[model_start:sn_pos].strip()
+                        sn_start = sn_pos + len(sn_key)
+                        serial = cleaned_line[sn_start:].strip()
+                        serial = ' '.join(serial.split())
+                        info['serial_number'] = serial
+                    else:
+                        info['system_model'] = cleaned_line[model_start:].strip()
+            
+            # 单独处理主机SN码行（如果在不同行）
+            if '主机SN码' in original_line and '主机型号' not in original_line:
+                cleaned_line = re.sub(r'^\s*\d+、', '', original_line)
+                sn_key = '主机SN码：'
+                sn_start = cleaned_line.find(sn_key)
+                if sn_start >= 0:
+                    sn_start += len(sn_key)
+                    serial = cleaned_line[sn_start:].strip()
+                    serial = ' '.join(serial.split())
+                    info['serial_number'] = serial
+            
+            if 'CPU型号' in original_line:
+                line_content = re.sub(r'^\s*\d+、', '', original_line)
+                cpu_start = line_content.find('CPU型号【')
+                if cpu_start >= 0:
+                    cpu_start += 5
+                    remaining = line_content[cpu_start:]
+                    first_bracket = remaining.find('】')
+                    if first_bracket > 0:
+                        info['cpu_cores'] = remaining[:first_bracket].strip()
+                        remaining = remaining[first_bracket+1:]
+                        usage_start = remaining.find('【')
+                        if usage_start > 0:
+                            usage_end = remaining.find('】', usage_start)
+                            if usage_end > usage_start:
+                                info['cpu_usage'] = remaining[usage_start+1:usage_end].strip()
+                                if usage_end + 1 < len(remaining):
+                                    info['cpu_model'] = remaining[usage_end+1:].strip()
+                        else:
+                            info['cpu_model'] = remaining.strip()
+            
+            if '总内存/空闲内存' in original_line:
+                line_content = re.sub(r'^\s*\d+、', '', original_line)
+                parts = line_content.split(':')
+                if len(parts) > 1:
+                    mem_info = parts[1].strip()
+                    mem_parts = mem_info.split('/')
+                    if len(mem_parts) >= 2:
+                        info['memory_total'] = mem_parts[0].strip()
+                        info['memory_free'] = mem_parts[1].strip()
+            
+            if '显卡：' in original_line:
+                line_content = re.sub(r'^\s*\d+、', '', original_line)
+                parts = line_content.split('显卡：')
+                if len(parts) > 1:
+                    info['gpu'] = parts[1].strip()
+            
+            if '系统根目录空间' in original_line:
+                line_content = re.sub(r'^\s*\d+、', '', original_line)
+                parts = line_content.split('：')
+                if len(parts) > 2:
+                    info['disk_size'] = parts[1].strip()
+                    info['disk_free'] = parts[2].strip()
+            
+            # 在磁盘信息区域内处理磁盘
+            if in_disk_section:
+                # 更全面地匹配磁盘设备，包括sd、nvme、sr等
+                if (line.startswith('sd') or line.startswith('nvme') or 
+                    line.startswith('sr') or line.startswith('mmcblk') or
+                    line.startswith('hd')):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        disk_name = parts[0]
+                        disk_size = parts[1]
+                        disk_sn = parts[2] if len(parts) > 2 else 'Unknown'
+                        info['disks'].append({'name': disk_name, 'size': disk_size, 'sn': disk_sn})
+            
+            if '网卡(' in line:
+                # 使用正则表达式提取网卡名称和MAC地址
+                import re
+                match = re.search(r'网卡\(([^)]+)\):\s*([0-9a-fA-F:]+)', line)
+                if match:
+                    name = match.group(1).strip()
+                    mac = match.group(2).strip()
+                    info['network'].append({'name': name, 'mac': mac})
+                else:
+                    # 备用解析方法
+                    parts = line.split(':')
+                    if len(parts) > 1:
+                        name = parts[0].replace('网卡(', '').replace(')', '').strip()
+                        # 合并剩余部分作为MAC地址
+                        mac = ':'.join(parts[1:]).strip()
+                        info['network'].append({'name': name, 'mac': mac})
+            
+            if '系统服务序列号' in line:
+                parts = line.split('：')
+                if len(parts) > 1:
+                    serial_part = parts[1].strip()
+                    if ' ' in serial_part:
+                        serial_part = serial_part.split(' ')[0].strip()
+                    info['kylin_serial'] = serial_part
+            
+            if '技术服务期' in line or '系统未激活' in line:
+                info['service_status'] = line.split('：')[-1].strip()
+            
+            if '当前系统版本' in line:
+                parts = line.split('：')
+                if len(parts) > 1:
+                    info['system_id'] = parts[1].strip()
+            
+            if '当前内核版本' in line:
+                parts = line.split('：')
+                if len(parts) > 1:
+                    info['kernel'] = parts[1].strip()
+            
+            if '系统安装时间' in line:
+                parts = line.split('：')
+                if len(parts) > 1:
+                    info['install_time'] = parts[1].strip()
+            
+            if '系统build-id' in line:
+                parts = line.split('：')
+                if len(parts) > 1:
+                    build_id_str = parts[1].strip()
+                    if 'buildid:' in build_id_str:
+                        build_id_str = build_id_str.split('buildid:')[-1].strip()
+                    info['build_id'] = build_id_str
+            
+            if '操作系统硬件码' in line:
+                parts = line.split('：')
+                if len(parts) > 1:
+                    info['hwid'] = parts[1].strip()
+                    if not info['hwid']:
+                        info['hwid'] = 'Unknown'
+            
+            if '操作系统注册码' in line:
+                parts = line.split('：')
+                if len(parts) > 1:
+                    info['register_code'] = parts[1].strip()
+            
+            if '操作系统激活码' in line:
+                parts = line.split('：')
+                if len(parts) > 1:
+                    info['activation'] = parts[1].strip()
+        
+        return info
 
-        self.thread = WorkerThread(do_repair)
-        self.thread.finished.connect(lambda r: None)
+    def load_system_info(self):
+        def fetch():
+            return self.client.get_detailed_system_info()
+
+        def on_result(result):
+            if self._is_destroyed:
+                return
+            if result.get('status') == 'success':
+                output = result.get('data', {}).get('output', '')
+                self.raw_output = output
+                
+                info = self.parse_system_info(output)
+                
+                for i in reversed(range(self.hardware_card.content_layout.count())):
+                    self.hardware_card.content_layout.itemAt(i).widget().setParent(None)
+                
+                for i in reversed(range(self.software_card.content_layout.count())):
+                    self.software_card.content_layout.itemAt(i).widget().setParent(None)
+                
+                for i in reversed(range(self.storage_card.content_layout.count())):
+                    self.storage_card.content_layout.itemAt(i).widget().setParent(None)
+                
+                for i in reversed(range(self.network_card.content_layout.count())):
+                    self.network_card.content_layout.itemAt(i).widget().setParent(None)
+                
+                self.hardware_card.add_info_row("主机型号", info['system_model'])
+                self.hardware_card.add_info_row("序列号", info['serial_number'])
+                self.hardware_card.add_info_row("CPU型号", info['cpu_model'])
+                self.hardware_card.add_info_row("CPU核心数", f"{info['cpu_cores']} 核")
+                self.hardware_card.add_info_row("CPU使用率", info['cpu_usage'])
+                self.hardware_card.add_info_row("总内存", info['memory_total'])
+                self.hardware_card.add_info_row("空闲内存", info['memory_free'])
+                self.hardware_card.add_info_row("显卡", info['gpu'])
+                
+                activated = "已激活" if "已激活" in info['activation'] or "激活" in info['activation'] else "未激活"
+                highlighted = "已激活" in info['activation']
+                
+                self.software_card.add_info_row("系统版本", info['system_id'])
+                self.software_card.add_info_row("内核版本", info['kernel'])
+                self.software_card.add_info_row("服务序列号", info['kylin_serial'])
+                self.software_card.add_info_row("服务状态", info['service_status'])
+                self.software_card.add_info_row("安装时间", info['install_time'])
+                self.software_card.add_info_row("Build ID", info['build_id'])
+                self.software_card.add_info_row("硬件码", info['hwid'])
+                self.software_card.add_info_row("注册码", info['register_code'])
+                self.software_card.add_info_row("激活状态", activated, highlighted)
+                
+                self.storage_card.add_info_row("根目录大小", info['disk_size'])
+                self.storage_card.add_info_row("根目录可用", info['disk_free'])
+                for disk in info['disks']:
+                    disk_name = disk['name']
+                    if disk_name.startswith('sr'):
+                        continue
+                    if disk_name.startswith('sd') or disk_name.startswith('nvme'):
+                        disk_label = f"磁盘 ({disk_name})"
+                    else:
+                        disk_label = f"{disk_name}"
+                    disk_size = disk['size']
+                    disk_sn = disk.get('sn', 'Unknown')
+                    self.storage_card.add_info_row(f"{disk_label}", f"{disk_size} / SN: {disk_sn}")
+                
+                for net in info['network'][:3]:
+                    self.network_card.add_info_row(net['name'], net['mac'])
+                
+                self.refresh_btn.setEnabled(True)
+            else:
+                self.refresh_btn.setEnabled(True)
+                QMessageBox.error(self, "错误", result.get('message', '获取系统信息失败'))
+
+        self.refresh_btn.setEnabled(False)
+        self.thread = WorkerThread(fetch)
+        self.thread.finished.connect(on_result)
         self.thread.start()
 
-    def on_repair_finished(self, result):
-        self.is_repairing = False
-        self.repair_btn.setEnabled(True)
+    def copy_info(self):
+        clipboard = QApplication.clipboard()
+        clipboard.setText(self.raw_output)
+        QMessageBox.information(self, "成功", "系统信息已复制到剪贴板")
+
+    def closeEvent(self, event):
+        self._is_destroyed = True
+        event.accept()
+
+
+class PrinterRepairDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("修复打印机服务")
+        self.setFixedSize(600, 400)
+        self.setStyleSheet(f"background-color: {BACKGROUND_MAIN};")
+        self.client = LocalClient()
+        self.init_ui()
+        self._is_destroyed = False
+
+    def init_ui(self):
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setSpacing(16)
+
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
         
-        if result.get('status') == 'success':
-            self.result_label.setText("✓ 修复成功！")
-            self.result_label.setStyleSheet(f"color: {MAC_GREEN}; padding: 8px; font-weight: bold;")
-            QMessageBox.information(self, "成功", "打印机服务修复成功！\n请尝试重新连接打印机。")
-        else:
-            self.result_label.setText("✗ 修复失败")
-            self.result_label.setStyleSheet(f"color: {MAC_RED}; padding: 8px;")
-            QMessageBox.warning(self, "警告", result.get('message', '修复失败，请检查错误信息'))
+        header_icon = QLabel()
+        header_icon.setPixmap(QIcon.fromTheme("printer").pixmap(32, 32))
+        header_layout.addWidget(header_icon)
+        
+        header = QLabel("修复打印机服务")
+        header.setFont(create_font(FONT_SIZE_LARGE, "semibold"))
+        header.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        header_layout.addWidget(header)
+        header_layout.addStretch()
+        
+        main_layout.addWidget(header_widget)
+
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.log_text.setMinimumHeight(180)
+        self.log_text.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {BACKGROUND_SECONDARY};
+                border-radius: 12px;
+                padding: 16px;
+                color: {TEXT_PRIMARY};
+                font-family: 'Consolas', monospace;
+                font-size: 13px;
+            }}
+        """)
+        self.log_text.setPlaceholderText("点击下方按钮开始修复打印机服务...")
+        main_layout.addWidget(self.log_text)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        self.repair_btn = QPushButton("开始修复")
+        self.repair_btn.setIcon(QIcon.fromTheme("dialog-ok-apply"))
+        self.repair_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
+        self.repair_btn.clicked.connect(self.start_repair)
+        btn_layout.addWidget(self.repair_btn)
+        
+        close_btn = QPushButton("关闭")
+        close_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        close_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(close_btn)
+        
+        main_layout.addLayout(btn_layout)
+        self.setLayout(main_layout)
+
+    def start_repair(self):
+        self.repair_btn.setEnabled(False)
+        self.log_text.append("正在执行打印机修复...")
+
+        def fetch():
+            return self.client.fix_printer()
+
+        def on_result(result):
+            if self._is_destroyed:
+                return
+            if result.get('status') == 'success':
+                self.log_text.append("✅ 修复成功！")
+                if result.get('output'):
+                    self.log_text.append(result['output'])
+                if result.get('error'):
+                    self.log_text.append(f"警告: {result['error']}")
+                QMessageBox.information(self, "成功", "打印机服务已修复并重启。")
+            else:
+                self.log_text.append(f"❌ 修复失败: {result.get('message', '未知错误')}")
+                if result.get('error'):
+                    self.log_text.append(f"错误详情: {result['error']}")
+                QMessageBox.error(self, "错误", result.get('message', '修复打印机失败'))
+            self.repair_btn.setEnabled(True)
+
+        self.thread = WorkerThread(fetch)
+        self.thread.finished.connect(on_result)
+        self.thread.start()
+
+    def closeEvent(self, event):
+        self._is_destroyed = True
+        event.accept()
 
 
 class TerminalPage(QWidget):
@@ -2765,6 +2371,7 @@ class ToolCard(QFrame):
 class FeatureToolsPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.main_window = parent
         self.init_ui()
 
     def init_ui(self):
@@ -2784,9 +2391,17 @@ class FeatureToolsPage(QWidget):
         hosts_card.clicked.connect(self.open_hosts_editor)
         grid_layout.addWidget(hosts_card, 0, 0)
 
-        printer_card = ToolCard("printer", "修复打印机无法启动", "修复 CUPS 打印机服务配置问题", "#5AC8FA")
+        sysinfo_card = ToolCard("computer", "系统信息查看", "查看详细的系统硬件和软件信息", "#34C759")
+        sysinfo_card.clicked.connect(self.open_system_info)
+        grid_layout.addWidget(sysinfo_card, 0, 1)
+
+        printer_card = ToolCard("printer", "修复打印机服务", "恢复CUPS默认配置并重启打印服务", "#007AFF")
         printer_card.clicked.connect(self.open_printer_repair)
-        grid_layout.addWidget(printer_card, 0, 1)
+        grid_layout.addWidget(printer_card, 1, 0)
+
+        kms_card = ToolCard("security-high", "KMS脚本生成器", "可视化定制KMS激活脚本，支持克隆机修复", "#FF9500")
+        kms_card.clicked.connect(self.open_kms_generator)
+        grid_layout.addWidget(kms_card, 1, 1)
 
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -2802,9 +2417,610 @@ class FeatureToolsPage(QWidget):
         dialog = HostsEditorDialog(self)
         dialog.exec_()
 
+    def open_system_info(self):
+        dialog = SystemInfoDialog(self)
+        dialog.exec_()
+
     def open_printer_repair(self):
         dialog = PrinterRepairDialog(self)
         dialog.exec_()
+
+    def open_kms_generator(self):
+        dialog = KmsScriptGeneratorDialog(self)
+        dialog.exec_()
+
+
+class KmsScriptGeneratorDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("KMS脚本生成器")
+        self.setMinimumSize(900, 600)
+        self.resize(900, 600)
+        self.setStyleSheet(f"background-color: {BACKGROUND_MAIN};")
+        
+        self.kms_server = "10.0.0.10"
+        self.options = {
+            'clone_fix': True,
+            'deploy_license': True,
+            'network_diagnosis': True,
+            'version_compatible': True
+        }
+        self.license_files = []
+        self.license_base64 = {}
+        
+        self.init_ui()
+
+    def init_ui(self):
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(20)
+
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(20)
+        left_panel.setFixedWidth(350)
+
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(10)
+        
+        header_icon = QLabel()
+        header_icon.setPixmap(QIcon.fromTheme("key").pixmap(32, 32))
+        header_layout.addWidget(header_icon)
+        
+        header_label = QLabel("KMS脚本生成器")
+        header_label.setFont(create_font(FONT_SIZE_LARGE, "semibold"))
+        header_label.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        header_layout.addWidget(header_label)
+        
+        left_layout.addWidget(header_widget)
+
+        desc_label = QLabel("可视化定制多功能KMS激活脚本，支持克隆机修复与全版本适配")
+        desc_label.setFont(create_font(FONT_SIZE_SMALL))
+        desc_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        left_layout.addWidget(desc_label)
+
+        kms_group = QGroupBox("KMS服务器配置")
+        kms_layout = QVBoxLayout(kms_group)
+        kms_layout.setContentsMargins(16, 16, 16, 16)
+        
+        self.kms_input = QLineEdit(self.kms_server)
+        self.kms_input.setStyleSheet(LINE_EDIT_STYLE)
+        kms_layout.addWidget(self.kms_input)
+        
+        preset_layout = QHBoxLayout()
+        preset_btn1 = QPushButton("内网A")
+        preset_btn1.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        preset_btn1.clicked.connect(lambda: self.kms_input.setText("10.0.0.10"))
+        preset_layout.addWidget(preset_btn1)
+        
+        preset_btn2 = QPushButton("云KMS")
+        preset_btn2.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        preset_btn2.clicked.connect(lambda: self.kms_input.setText("kms.example.com"))
+        preset_layout.addWidget(preset_btn2)
+        
+        preset_btn3 = QPushButton("本地回路")
+        preset_btn3.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        preset_btn3.clicked.connect(lambda: self.kms_input.setText("127.0.0.1"))
+        preset_layout.addWidget(preset_btn3)
+        
+        kms_layout.addLayout(preset_layout)
+        left_layout.addWidget(kms_group)
+
+        options_group = QGroupBox("高级功能选项")
+        options_layout = QVBoxLayout(options_group)
+        options_layout.setContentsMargins(16, 16, 16, 16)
+        
+        self.clone_check = QCheckBox("克隆机硬件标识清理")
+        self.clone_check.setChecked(self.options['clone_fix'])
+        self.clone_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        self.clone_check.toggled.connect(lambda checked: self.update_option('clone_fix', checked))
+        options_layout.addWidget(self.clone_check)
+        
+        self.license_check = QCheckBox("自动探测并部署授权文件")
+        self.license_check.setChecked(self.options['deploy_license'])
+        self.license_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        self.license_check.toggled.connect(lambda checked: self.update_option('deploy_license', checked))
+        options_layout.addWidget(self.license_check)
+        
+        self.diagnosis_check = QCheckBox("连接性前置诊断")
+        self.diagnosis_check.setChecked(self.options['network_diagnosis'])
+        self.diagnosis_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        self.diagnosis_check.toggled.connect(lambda checked: self.update_option('network_diagnosis', checked))
+        options_layout.addWidget(self.diagnosis_check)
+        
+        self.compatible_check = QCheckBox("全版本兼容适配")
+        self.compatible_check.setChecked(self.options['version_compatible'])
+        self.compatible_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        self.compatible_check.toggled.connect(lambda checked: self.update_option('version_compatible', checked))
+        options_layout.addWidget(self.compatible_check)
+        
+        left_layout.addWidget(options_group)
+
+        license_group = QGroupBox("授权文件上传")
+        license_layout = QVBoxLayout(license_group)
+        license_layout.setContentsMargins(16, 16, 16, 16)
+        license_layout.setSpacing(12)
+        
+        upload_btn = QPushButton("上传授权文件")
+        upload_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        upload_btn.clicked.connect(self.upload_license_file)
+        license_layout.addWidget(upload_btn)
+        
+        self.license_list = QListWidget()
+        self.license_list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {BACKGROUND_SECONDARY};
+                border-radius: {CORNER_BUTTON}px;
+                border: 1px solid {DIVIDER};
+                padding: 4px;
+                color: {TEXT_PRIMARY};
+                font-size: {FONT_SIZE_SMALL}px;
+            }}
+            QListWidget::item {{
+                padding: 4px;
+            }}
+        """)
+        self.license_list.setMaximumHeight(80)
+        license_layout.addWidget(self.license_list)
+        
+        hint_label = QLabel("支持 .kyinfo、.zip、LICENSE 等文件\n已上传的文件将嵌入到脚本中")
+        hint_label.setFont(create_font(FONT_SIZE_SMALL))
+        hint_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        hint_label.setWordWrap(True)
+        license_layout.addWidget(hint_label)
+        
+        left_layout.addWidget(license_group)
+
+        btn_layout = QHBoxLayout()
+        
+        download_btn = QPushButton("下载脚本")
+        download_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
+        download_btn.clicked.connect(self.download_script)
+        btn_layout.addWidget(download_btn)
+        
+        copy_btn = QPushButton("复制代码")
+        copy_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        copy_btn.clicked.connect(self.copy_script)
+        btn_layout.addWidget(copy_btn)
+        
+        run_btn = QPushButton("运行脚本")
+        run_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #FF3B30;
+                color: white;
+                border: none;
+                border-radius: {CORNER_BUTTON}px;
+                padding: 8px 24px;
+                font-family: {FONT_FAMILY};
+                font-size: {FONT_SIZE_NORMAL}px;
+                font-weight: 500;
+                min-height: 32px;
+            }}
+            QPushButton:hover {{
+                background-color: #FF453A;
+            }}
+            QPushButton:pressed {{
+                background-color: #CC2D24;
+            }}
+            QPushButton:disabled {{
+                background-color: {TEXT_DISABLED};
+            }}
+        """)
+        run_btn.clicked.connect(self.run_script)
+        btn_layout.addWidget(run_btn)
+        
+        left_layout.addLayout(btn_layout)
+        left_layout.addStretch()
+
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(12)
+
+        header_right = QWidget()
+        header_right_layout = QHBoxLayout(header_right)
+        header_right_layout.setContentsMargins(0, 0, 0, 0)
+        
+        title_right = QLabel("实时预览")
+        title_right.setFont(create_font(FONT_SIZE_NORMAL, "medium"))
+        title_right.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        header_right_layout.addWidget(title_right)
+        
+        header_right_layout.addStretch()
+        
+        file_label = QLabel("kms_activate.sh")
+        file_label.setFont(create_font(FONT_SIZE_SMALL))
+        file_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        header_right_layout.addWidget(file_label)
+        
+        lang_label = QLabel("Bash Script")
+        lang_label.setFont(create_font(FONT_SIZE_SMALL))
+        lang_label.setStyleSheet(f"color: {MAC_BLUE};")
+        header_right_layout.addWidget(lang_label)
+        
+        right_layout.addWidget(header_right)
+
+        self.script_text = QTextEdit()
+        self.script_text.setReadOnly(True)
+        self.script_text.setFont(QFont("Consolas", 10))
+        self.script_text.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {BACKGROUND_SECONDARY};
+                border-radius: {CORNER_BUTTON}px;
+                padding: 12px;
+                color: {TEXT_PRIMARY};
+            }}
+        """)
+        right_layout.addWidget(self.script_text, stretch=1)
+
+        help_group = QGroupBox("使用说明")
+        help_layout = QVBoxLayout(help_group)
+        help_layout.setContentsMargins(12, 12, 12, 12)
+        help_layout.setSpacing(4)
+        
+        title_label = QLabel("使用说明")
+        title_label.setFont(create_font(FONT_SIZE_NORMAL, weight="bold"))
+        title_label.setStyleSheet("color: #BF5AF2;")
+        help_layout.addWidget(title_label)
+        
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        line.setStyleSheet(f"color: {DIVIDER};")
+        help_layout.addWidget(line)
+        
+        instructions = [
+            ("• 赋予执行权限:", "chmod +x kms_activate.sh"),
+            ("• 以管理员身份运行:", "sudo ./kms_activate.sh"),
+            ("• 注意事项:", "脚本执行后请重启系统或手动执行 kylin-activation -auto 以刷新状态。")
+        ]
+        
+        for label_text, code_text in instructions:
+            row_layout = QHBoxLayout()
+            
+            label = QLabel(label_text)
+            label.setFont(create_font(FONT_SIZE_SMALL))
+            label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+            row_layout.addWidget(label)
+            
+            code_label = QLabel(code_text)
+            code_label.setFont(QFont("Consolas", 11))
+            code_label.setStyleSheet(f"background-color: {BACKGROUND_SECONDARY}; color: #34C759; padding: 2px 6px; border-radius: 4px;")
+            row_layout.addWidget(code_label)
+            
+            row_layout.addStretch()
+            help_layout.addLayout(row_layout)
+        
+        right_layout.addWidget(help_group)
+
+        main_layout.addWidget(left_panel)
+        main_layout.addWidget(right_panel, stretch=1)
+        self.setLayout(main_layout)
+        
+        self.update_script()
+
+    def update_option(self, key, value):
+        self.options[key] = value
+        self.update_script()
+
+    def upload_license_file(self):
+        file_path = QFileDialog.getOpenFileName(
+            self, 
+            "选择授权文件", 
+            "", 
+            "授权文件 (*.kyinfo *.zip LICENSE *LICENSE*);;所有文件 (*)"
+        )
+        
+        if file_path[0]:
+            try:
+                import os
+                import base64
+                
+                abs_path = os.path.abspath(file_path[0])
+                
+                if abs_path in self.license_files:
+                    QMessageBox.warning(self, "警告", "该文件已添加！")
+                    return
+                
+                with open(abs_path, 'rb') as f:
+                    base64_data = base64.b64encode(f.read()).decode('ascii')
+                
+                self.license_files.append(abs_path)
+                self.license_base64[abs_path] = base64_data
+                
+                file_name = os.path.basename(abs_path)
+                self.license_list.addItem(file_name)
+                
+                self.update_script()
+                
+                QMessageBox.information(self, "成功", f"已添加授权文件: {file_name}")
+            
+            except Exception as e:
+                QMessageBox.error(self, "错误", f"读取文件失败: {str(e)}")
+
+    def update_script(self):
+        self.kms_server = self.kms_input.text().strip()
+        self.script_text.setText(self.generate_script())
+
+    def generate_script(self):
+        from datetime import datetime
+        now = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        
+        script = f"""#!/bin/bash
+# ============================================================
+# 银河麒麟 KMS 全自动激活脚本 (可视化生成版)
+# 生成时间: {now}
+# ============================================================
+
+# 环境检查
+if [ "$(id -u)" -ne 0 ]; then
+    echo ">>> 请以 root 权限运行，正在尝试 sudo..."
+    exec sudo "$0" "$@"
+fi
+
+KMS_SERVER="{self.kms_server}"
+
+"""
+        
+        if self.options['network_diagnosis']:
+            script += """
+echo ">>> 正在执行环境诊断..."
+if ! ping -c 1 -W 2 "$KMS_SERVER" &>/dev/null; then
+    echo "警告: 无法连通 KMS 服务器 ($KMS_SERVER)，请检查网络"
+fi
+
+"""
+        
+        if self.options['clone_fix']:
+            script += """
+echo ">>> 正在清理旧硬件标识 (克隆机修复)..."
+[ -f "/etc/.kyhwid" ] && rm -vf /etc/.kyhwid
+
+"""
+        
+        if self.license_files:
+            script += "\n"
+            for file_path, base64_data in self.license_base64.items():
+                file_basename = os.path.basename(file_path)
+                script += f'''
+echo ">>> 正在释放内嵌授权文件: {file_basename}..."
+TMP_FILE="/tmp/{file_basename}"
+echo "{base64_data}" | base64 -d > "$TMP_FILE"
+if [[ "$TMP_FILE" == *.zip ]]; then
+    echo "  正在解压部署..."
+    unzip -q -o "$TMP_FILE" -d /tmp/kms_inner_deploy
+    cp -ar -f /tmp/kms_inner_deploy/* /etc/
+    rm -rf /tmp/kms_inner_deploy
+else
+    echo "  正在部署文件..."
+    cp -vf "$TMP_FILE" /etc/
+fi
+rm -f "$TMP_FILE"
+
+'''
+        
+        if self.options['deploy_license']:
+            script += """
+echo ">>> 正在探测并部署本地授权许可文件..."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LICENSE_FILES=($(find "$SCRIPT_DIR" -maxdepth 1 \\( -name "*.kyinfo" -o -name "LICENSE" -o -name "*-*.zip" \\) 2>/dev/null))
+
+if [ ${#LICENSE_FILES[@]} -gt 0 ]; then
+    for file in "${{LICENSE_FILES[@]}}"; do
+        if [[ "$file" == *.zip ]]; then
+            echo "  正在解压部署: $(basename "$file")"
+            unzip -q -o "$file" -d /tmp/kms_deploy
+            cp -ar -f /tmp/kms_deploy/* /etc/
+            rm -rf /tmp/kms_deploy
+        else
+            echo "  正在拷贝文件: $(basename "$file")"
+            cp -vf "$file" /etc/
+        fi
+    done
+else
+    echo "  [跳过] 未在当前目录发现额外授权文件"
+fi
+
+"""
+        
+        script += f"""
+echo ">>> 正在配置 KMS 服务器为: $KMS_SERVER"
+
+"""
+        
+        if self.options['version_compatible']:
+            script += """
+# 兼容旧路径
+KMS_CONF="/usr/share/kylin-activation/kms.conf"
+[ -f "$KMS_CONF" ] && sed -i "s/server=.*/server=$KMS_SERVER/" "$KMS_CONF"
+
+# 兼容新路径
+INI_CONF="/usr/share/kylin-activation/activation_conf.ini"
+[ -f "$INI_CONF" ] && sed -i "s/ServerIp *=.*/ServerIp = $KMS_SERVER/" "$INI_CONF"
+
+"""
+        
+        script += """
+echo ">>> 正在触发激活服务..."
+if command -v kylin-activation &>/dev/null; then
+    kylin-activation -auto
+    echo ">>> 激活请求已发送，请在系统属性界面查看结果。"
+else
+    echo "错误: 未找到系统激活工具，请手动检查环境。"
+fi
+
+echo -e "\\n脚本执行完成！"
+"""
+        
+        return script
+
+    def download_script(self):
+        script = self.generate_script()
+        file_path = QFileDialog.getSaveFileName(self, "保存脚本", "kms_activate.sh", "Shell Script (*.sh)")
+        if file_path[0]:
+            try:
+                with open(file_path[0], 'w') as f:
+                    f.write(script)
+                QMessageBox.information(self, "成功", "脚本已保存！")
+            except Exception as e:
+                QMessageBox.error(self, "错误", f"保存失败: {str(e)}")
+
+    def copy_script(self):
+        script = self.generate_script()
+        clipboard = QApplication.clipboard()
+        clipboard.setText(script)
+        QMessageBox.information(self, "成功", "脚本代码已复制到剪贴板！")
+
+    def validate_script(self, script):
+        if not script or not script.strip():
+            return False, "脚本内容为空"
+        
+        if not script.startswith('#!/bin/bash'):
+            return False, "脚本不是有效的Bash脚本"
+        
+        if 'KMS_SERVER' not in script:
+            return False, "脚本缺少KMS服务器配置"
+        
+        return True, "脚本验证通过"
+
+    def run_script(self):
+        script = self.generate_script()
+        
+        valid, message = self.validate_script(script)
+        if not valid:
+            QMessageBox.warning(self, "警告", f"脚本验证失败: {message}")
+            return
+        
+        reply = QMessageBox.question(
+            self, 
+            "确认运行", 
+            "即将执行KMS激活脚本，此操作将修改系统配置。\n\n"
+            "注意：\n"
+            "- 脚本需要管理员权限运行\n"
+            "- 请确保已备份重要数据\n"
+            "- 建议在虚拟机或测试环境中先测试\n\n"
+            "确定要继续执行吗？",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        run_dialog = QDialog(self)
+        run_dialog.setWindowTitle("运行脚本")
+        run_dialog.setMinimumSize(600, 400)
+        run_dialog.setStyleSheet(f"background-color: {BACKGROUND_MAIN};")
+        
+        layout = QVBoxLayout(run_dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+        
+        status_label = QLabel("脚本运行中...")
+        status_label.setFont(create_font(FONT_SIZE_NORMAL, "semibold"))
+        status_label.setStyleSheet(f"color: {MAC_BLUE};")
+        layout.addWidget(status_label)
+        
+        output_text = QTextEdit()
+        output_text.setReadOnly(True)
+        output_text.setFont(QFont("Consolas", 10))
+        output_text.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {BACKGROUND_SECONDARY};
+                border-radius: {CORNER_BUTTON}px;
+                padding: 12px;
+                color: {TEXT_PRIMARY};
+            }}
+        """)
+        layout.addWidget(output_text, stretch=1)
+        
+        progress_bar = QProgressBar()
+        progress_bar.setRange(0, 0)
+        progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: none;
+                background-color: #E5E5EA;
+                border-radius: 4px;
+                height: 8px;
+            }
+            QProgressBar::chunk {
+                background-color: #007AFF;
+                border-radius: 4px;
+            }
+        """)
+        layout.addWidget(progress_bar)
+        
+        close_btn = QPushButton("关闭")
+        close_btn.setStyleSheet(PRIMARY_BUTTON_STYLE)
+        close_btn.clicked.connect(run_dialog.close)
+        close_btn.setEnabled(False)
+        layout.addWidget(close_btn)
+        
+        run_dialog.show()
+        
+        import subprocess
+        import tempfile
+        import os
+        
+        def execute_script():
+            try:
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+                    f.write(script)
+                    temp_script = f.name
+                
+                os.chmod(temp_script, 0o755)
+                
+                process = subprocess.Popen(
+                    ['pkexec', 'bash', temp_script],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+                
+                output_lines = []
+                for line in iter(process.stdout.readline, ''):
+                    output_lines.append(line)
+                    output_text.append(line)
+                
+                process.wait()
+                
+                os.unlink(temp_script)
+                
+                return process.returncode, ''.join(output_lines)
+            
+            except Exception as e:
+                return -1, f"执行错误: {str(e)}"
+        
+        def on_finish(result):
+            return_code, output = result
+            
+            if return_code == 0:
+                status_label.setText("运行成功")
+                status_label.setStyleSheet(f"color: {MAC_GREEN};")
+            else:
+                status_label.setText("运行失败")
+                status_label.setStyleSheet(f"color: #FF3B30;")
+            
+            progress_bar.setRange(0, 1)
+            progress_bar.setValue(1)
+            close_btn.setEnabled(True)
+            
+            if output:
+                output_text.append("\n" + "="*50)
+                if return_code == 0:
+                    output_text.append("脚本执行成功！")
+                else:
+                    output_text.append(f"脚本执行失败，退出码: {return_code}")
+        
+        thread = WorkerThread(execute_script)
+        thread.finished.connect(on_finish)
+        thread.start()
+        
+        run_dialog.exec_()
 
 
 class MainWindow(QMainWindow):
@@ -2877,9 +3093,6 @@ class MainWindow(QMainWindow):
 
         nav_items = [
             ("系统监视器", "server"),
-            ("日志查看器", "wrench"),
-            ("KySec安全管理", "security-high"),
-            ("设备管理", "computer"),
             ("百宝箱", "applications"),
         ]
 
@@ -2983,12 +3196,8 @@ class MainWindow(QMainWindow):
             self.show_feature_tools()
         elif name == "系统监视器":
             self.show_system_status()
-        elif name == "日志查看器":
-            self.show_log_page()
-        elif name == "KySec安全管理":
-            self.show_security_page()
-        elif name == "设备管理":
-            self.show_system_info()
+        
+        
 
     def clear_content(self):
         if self.current_main_page:
@@ -3029,13 +3238,7 @@ class MainWindow(QMainWindow):
         self.content_layout.addWidget(self.feature_tabs, stretch=1)
         self.current_main_page = self.feature_tabs
 
-    def show_system_info(self):
-        self.clear_content()
-        self.nav_buttons["设备管理"].setChecked(True)
-
-        self.system_info_page = SystemInfoPage(self.client)
-        self.content_layout.addWidget(self.system_info_page, stretch=1)
-        self.current_main_page = self.system_info_page
+    
 
     def show_system_status(self):
         self.clear_content()
@@ -3045,21 +3248,7 @@ class MainWindow(QMainWindow):
         self.content_layout.addWidget(self.system_status_page, stretch=1)
         self.current_main_page = self.system_status_page
 
-    def show_log_page(self):
-        self.clear_content()
-        self.nav_buttons["日志查看器"].setChecked(True)
 
-        self.log_page = LogPage(self.client)
-        self.content_layout.addWidget(self.log_page, stretch=1)
-        self.current_main_page = self.log_page
-
-    def show_security_page(self):
-        self.clear_content()
-        self.nav_buttons["KySec安全管理"].setChecked(True)
-
-        self.security_page = SecurityPage(self.client)
-        self.content_layout.addWidget(self.security_page, stretch=1)
-        self.current_main_page = self.security_page
 
     def show_about(self):
         dialog = AboutDialog(self)
@@ -3067,6 +3256,19 @@ class MainWindow(QMainWindow):
 
 
 def main():
+    import os
+    os.environ['QT_XCB_GL_INTEGRATION'] = 'none'
+    
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    
+    try:
+        from PyQt5.QtGui import QTextCursor
+        from PyQt5.QtCore import QMetaType
+        QMetaType.registerType(QTextCursor, "QTextCursor")
+    except:
+        pass
+    
     app = QApplication(sys.argv)
     
     app.setStyle("Fusion")

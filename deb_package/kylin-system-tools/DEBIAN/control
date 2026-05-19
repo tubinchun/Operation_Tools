@@ -1,0 +1,10 @@
+Package: kylin-system-tools
+Version: 1.0.0
+Architecture: amd64
+Maintainer: Kylin Team <support@kylinos.cn>
+Description: 银河麒麟运维管理工具
+  银河麒麟桌面操作系统运维管理工具，提供系统监控、日志查看、安全管理、特色工具等功能。
+Depends: python3 (>= 3.6), python3-pyqt5 (>= 5.15.0), python3-psutil (>= 5.8.0)
+Section: admin
+Priority: optional
+Homepage: https://www.kylinos.cn

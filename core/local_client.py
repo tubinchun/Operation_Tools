@@ -94,3 +94,9 @@ class LocalClient:
 
     def get_gpu_info(self):
         return SystemCommands.get_gpu_info()
+
+    def get_detailed_system_info(self):
+        return SystemCommands.get_detailed_system_info()
+
+    def fix_printer(self):
+        return SystemCommands.fix_printer()

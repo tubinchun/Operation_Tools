@@ -18,6 +18,12 @@ setup(
             'kylintools-client=client.__main__:main',
         ],
     },
+    data_files=[
+        ('share/kylin-system-tools/core', [
+            'core/kylin_desktop_system_info.sh',
+            'core/fix_printer.sh',
+        ]),
+    ],
     classifiers=[
         'Operating System :: POSIX :: Linux',
         'Environment :: X11 Applications :: Qt',

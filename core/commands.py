@@ -856,20 +856,52 @@ class SystemCommands:
             manufacturer, _ = run_cmd('cat /sys/class/dmi/id/sys_vendor 2>/dev/null || echo "Unknown"')
             product_version, _ = run_cmd('cat /sys/class/dmi/id/product_version 2>/dev/null || echo "None"')
             product_name, _ = run_cmd('cat /sys/class/dmi/id/product_name 2>/dev/null || echo "Unknown"')
-            serial_number, _ = run_cmd('sudo dmidecode -s system-serial-number 2>/dev/null || cat /sys/class/dmi/id/product_serial 2>/dev/null || echo "Unknown"')
+            serial_number, _ = run_cmd('pkexec dmidecode -t system 2>/dev/null | grep Serial | sed \'s/^[[:space:]]*Serial[[:space:]]*Number[[:space:]]*:[[:space:]]*//\' || cat /sys/class/dmi/id/product_serial 2>/dev/null || echo "Unknown"')
+            serial_number = serial_number.strip() if serial_number else "Unknown"
             
             cpu_model, _ = run_cmd("lscpu | sed -n 's/^型号名称：[[:blank:]]*//p'")
             if not cpu_model:
                 cpu_model, _ = run_cmd("lscpu | grep 'Model name' | sed 's/Model name[[:space:]]*:[[:space:]]*//'")
             if not cpu_model:
                 cpu_model = 'Unknown'
-
+            
+            cpu_cores, _ = run_cmd("lscpu | grep 'CPU(s):' | head -1 | sed 's/CPU(s)[[:space:]]*:[[:space:]]*//'")
+            cpu_threads, _ = run_cmd("lscpu | grep 'Thread(s) per core' | sed 's/Thread(s) per core[[:space:]]*:[[:space:]]*//'")
+            
+            mem_total, _ = run_cmd("free -h | grep Mem | awk '{print $2}'")
+            swap_total, _ = run_cmd("free -h | grep Swap | awk '{print $2}'")
+            
+            motherboard_info, _ = run_cmd('cat /sys/class/dmi/id/board_name 2>/dev/null || echo "Unknown"')
+            motherboard_vendor, _ = run_cmd('cat /sys/class/dmi/id/board_vendor 2>/dev/null || echo "Unknown"')
+            motherboard_version, _ = run_cmd('cat /sys/class/dmi/id/board_version 2>/dev/null || echo "Unknown"')
+            
+            gpu_info = SystemCommands._get_gpu_details()
+            
+            disks = SystemCommands._get_storage_info()
+            
             hardware_info = {
-                'manufacturer': manufacturer,
-                'version': product_version,
-                'product_name': product_name,
-                'serial_number': serial_number,
-                'cpu_model': cpu_model,
+                'system': {
+                    'manufacturer': manufacturer.strip(),
+                    'product_name': product_name.strip(),
+                    'product_version': product_version.strip(),
+                    'serial_number': serial_number,
+                },
+                'cpu': {
+                    'model': cpu_model.strip(),
+                    'cores': cpu_cores.strip() if cpu_cores else "Unknown",
+                    'threads': cpu_threads.strip() if cpu_threads else "Unknown",
+                },
+                'memory': {
+                    'total': mem_total.strip() if mem_total else "Unknown",
+                    'swap': swap_total.strip() if swap_total else "Unknown",
+                },
+                'motherboard': {
+                    'name': motherboard_info.strip(),
+                    'vendor': motherboard_vendor.strip(),
+                    'version': motherboard_version.strip(),
+                },
+                'gpu': gpu_info,
+                'storage': disks,
             }
             return {'status': 'success', 'data': hardware_info}
         except Exception as e:
@@ -878,36 +910,266 @@ class SystemCommands:
     @staticmethod
     def get_gpu_info():
         try:
-            gpu_info = {
-                'name': 'Unknown',
-                'manufacturer': 'Unknown',
-                'subsystem': 'Unknown',
-                'model': 'Unknown',
-                'memory': 'Unknown',
-                'bus_info': 'Unknown',
-                'clock': 'Unknown',
-                'physical_id': 'Unknown',
-                'version': 'Unknown',
-                'driver': 'Unknown',
-                'bus_width': 'Unknown',
-            }
-            
-            name, _ = run_cmd('lspci | grep VGA | cut -d: -f3')
-            if name:
-                gpu_info['name'] = name.strip()
-                gpu_info['model'] = name.strip()
-            
-            if 'VMware' in gpu_info['name']:
-                gpu_info['manufacturer'] = 'VMware'
-                gpu_info['memory'] = '128MB'
-                gpu_info['driver'] = 'vmwgfx'
-            
-            vga_device, _ = run_cmd('lspci | grep VGA | cut -d\' \' -f1')
-            if vga_device:
-                subsystem, _ = run_cmd(f'lspci -nn -s {vga_device} 2>/dev/null | sed -n \'s/.*Subsystem \\([^ ]*\\):.*/\\1/p\'')
-                if subsystem:
-                    gpu_info['subsystem'] = subsystem.strip()
-            
+            gpu_info = SystemCommands._get_gpu_details()
             return {'status': 'success', 'data': gpu_info}
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
+
+    @staticmethod
+    def _get_gpu_details():
+        gpu_info = {
+            'name': 'Unknown',
+            'manufacturer': 'Unknown',
+            'model': 'Unknown',
+            'memory': 'Unknown',
+            'driver': 'Unknown',
+            'bus_info': 'Unknown',
+        }
+        
+        name, _ = run_cmd('lspci | grep -i VGA | cut -d: -f3')
+        if name:
+            gpu_info['name'] = name.strip()
+            gpu_info['model'] = name.strip()
+            
+            if 'NVIDIA' in name:
+                gpu_info['manufacturer'] = 'NVIDIA'
+                mem_output, _ = run_cmd('nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null')
+                if mem_output:
+                    gpu_info['memory'] = f"{mem_output.strip()}MB"
+                driver_output, _ = run_cmd('nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null')
+                if driver_output:
+                    gpu_info['driver'] = driver_output.strip()
+            elif 'AMD' in name or 'ATI' in name:
+                gpu_info['manufacturer'] = 'AMD'
+            elif 'Intel' in name:
+                gpu_info['manufacturer'] = 'Intel'
+            elif 'VMware' in name:
+                gpu_info['manufacturer'] = 'VMware'
+                gpu_info['memory'] = '128MB'
+                gpu_info['driver'] = 'vmwgfx'
+        
+        vga_device, _ = run_cmd('lspci | grep -i VGA | cut -d\' \' -f1')
+        if vga_device:
+            bus_info, _ = run_cmd(f'lspci -v -s {vga_device} 2>/dev/null | grep "Bus info" | sed \'s/Bus info[[:space:]]*:[[:space:]]*//\'')
+            if bus_info:
+                gpu_info['bus_info'] = bus_info.strip()
+        
+        return gpu_info
+
+    @staticmethod
+    def _get_storage_info():
+        disks = []
+        try:
+            lsblk_output, _ = run_cmd('lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT -n')
+            if lsblk_output:
+                for line in lsblk_output.strip().split('\n'):
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[2] == 'disk':
+                        disk_name = parts[0]
+                        disk_size = parts[1]
+                        disks.append({
+                            'name': disk_name,
+                            'size': disk_size,
+                            'type': 'HDD/SSD',
+                        })
+        except Exception:
+            pass
+        
+        if not disks:
+            disks.append({'name': 'Unknown', 'size': 'Unknown', 'type': 'Unknown'})
+        
+        return disks
+
+    @staticmethod
+    def get_detailed_system_info():
+        import subprocess
+        import os
+        
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), 'kylin_desktop_system_info.sh'),
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), 'core', 'kylin_desktop_system_info.sh'),
+            '/usr/share/kylin-system-tools/core/kylin_desktop_system_info.sh',
+            '/opt/kylin-system-tools/core/kylin_desktop_system_info.sh',
+            '/usr/local/share/kylin-system-tools/core/kylin_desktop_system_info.sh',
+        ]
+        
+        script_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                script_path = path
+                break
+        
+        if script_path:
+            try:
+                os.chmod(script_path, 0o755)
+                result = subprocess.run(
+                    ['bash', script_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                return {
+                    'status': 'success',
+                    'data': {
+                        'output': result.stdout,
+                        'error': result.stderr
+                    }
+                }
+            except subprocess.TimeoutExpired:
+                return {'status': 'error', 'message': '执行超时'}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+        else:
+            return {'status': 'success', 'data': {'output': SystemCommands._get_system_info_python(), 'error': ''}}
+
+    @staticmethod
+    def fix_printer():
+        import subprocess
+        import os
+        
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), 'fix_printer.sh'),
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), 'core', 'fix_printer.sh'),
+            '/usr/share/kylin-system-tools/core/fix_printer.sh',
+            '/opt/kylin-system-tools/core/fix_printer.sh',
+            '/usr/local/share/kylin-system-tools/core/fix_printer.sh',
+        ]
+        
+        script_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                script_path = path
+                break
+        
+        if script_path:
+            try:
+                os.chmod(script_path, 0o755)
+                result = subprocess.run(
+                    ['bash', script_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                return {
+                    'status': 'success',
+                    'message': '打印机修复成功' if result.returncode == 0 else '打印机修复失败',
+                    'output': result.stdout,
+                    'error': result.stderr
+                }
+            except subprocess.TimeoutExpired:
+                return {'status': 'error', 'message': '执行超时'}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+        else:
+            return SystemCommands._fix_printer_command()
+
+    @staticmethod
+    def _fix_printer_command():
+        import subprocess
+        
+        def run_cmd(cmd, shell=True):
+            try:
+                result = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=30)
+                return result.returncode == 0
+            except Exception:
+                return False
+        
+        if not run_cmd('pkexec cp /usr/share/cups/cupsd.conf.default /etc/cups/cupsd.conf'):
+            return {'status': 'error', 'message': '恢复CUPS默认配置失败'}
+        
+        if not run_cmd('pkexec systemctl restart cups'):
+            return {'status': 'error', 'message': '重启CUPS服务失败'}
+        
+        return {'status': 'success', 'message': '打印机修复成功'}
+
+    @staticmethod
+    def _get_system_info_python():
+        import subprocess
+        
+        def run_cmd(cmd, shell=True):
+            try:
+                result = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=30)
+                return result.stdout.strip()
+            except Exception:
+                return ""
+        
+        lines = []
+        
+        lines.append("=" * 78)
+        lines.append("                    系统基本信息")
+        lines.append("=" * 78)
+        lines.append("")
+        
+        lines.append("硬件信息：")
+        
+        manufacturer = run_cmd('cat /sys/class/dmi/id/sys_vendor 2>/dev/null') or "Unknown"
+        product_name = run_cmd('cat /sys/class/dmi/id/product_name 2>/dev/null') or "Unknown"
+        sncode = run_cmd('dmidecode -s system-serial-number 2>/dev/null') or "Unknown"
+        lines.append(f" 1、主机型号：{manufacturer}-{product_name}  主机SN码：{sncode}")
+        
+        cpu_model = run_cmd("awk -F: '/model name/ {print $2}' /proc/cpuinfo | uniq") or "Unknown"
+        cpu_cores = run_cmd("cat /proc/cpuinfo | grep 'processor' | wc -l") or "Unknown"
+        cpu_usage = run_cmd("top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4}'") or "Unknown"
+        lines.append(f" 2、CPU型号【{cpu_cores}核】：【{cpu_usage}%】{cpu_model.strip()}")
+        
+        mem_total = run_cmd("free -g | awk 'NR==2{print $2}'") or "Unknown"
+        mem_free = run_cmd("free -g | awk 'NR==2{print $7}'") or "Unknown"
+        lines.append(f" 3、总内存/空闲内存: {mem_total} GB / {mem_free} GB")
+        
+        gpu_name = run_cmd("lspci | grep -i vga | awk -F ':' '{print $3}'") or "Unknown"
+        lines.append(f" 4、显卡：{gpu_name.strip()}")
+        
+        root_size = run_cmd("df -h / | awk 'NR==2{print $2}'") or "Unknown"
+        root_avail = run_cmd("df -h / | awk 'NR==2{print $4}'") or "Unknown"
+        lines.append(f" 5、系统根目录空间：{root_size}  剩余可用：{root_avail}")
+        
+        lines.append(" -------------------------")
+        disk_info = run_cmd("lsblk -d -o NAME,SIZE,SERIAL --nodeps | grep -v loop | head -6")
+        lines.append("磁盘名称    磁盘大小    磁盘SN")
+        lines.append(disk_info)
+        lines.append(" -------------------------")
+        
+        net_info = run_cmd("ip -o link show | awk -F': ' '{print $2}' | grep -Ev 'lo|vmnet|docker|utun|virbr0' | head -3")
+        if net_info:
+            for intf in net_info.split('\n'):
+                intf = intf.strip()
+                if intf:
+                    mac = run_cmd(f"ip link show {intf} | grep link/ether | awk '{{print $2}}'") or "Unknown"
+                    lines.append(f" 网卡({intf}): {mac}")
+        
+        lines.append("")
+        lines.append("软件信息：")
+        
+        systemid = run_cmd("cat /etc/.kyinfo | grep dist_id | awk -F'=| ' '{print $2}'") or "Unknown"
+        kylin_serial = run_cmd("cat /etc/.kyinfo | grep key= | awk -F'=' '{print $2}'") or "Unknown"
+        
+        if os.path.exists("/etc/.kyactivation"):
+            service_data = run_cmd("cat /etc/.kyinfo | grep term= | awk -F'=' '{print $2}'")
+            service_text = f"技术服务期到：{service_data}" if service_data else "技术服务期未知"
+            register = run_cmd("cat /etc/.kyactivation") or "Unknown"
+        else:
+            service_text = "【系统未激活无技术服务】"
+            register = "系统未激活"
+        
+        lines.append(f" 1、系统服务序列号：{kylin_serial}  {service_text}")
+        lines.append(f" 2、当前系统版本是：{systemid}")
+        
+        kernel = run_cmd("uname -r") or "Unknown"
+        lines.append(f" 3、当前内核版本是：{kernel}")
+        
+        systemtime = run_cmd("date -r /var/log/installer 2>/dev/null") or "Unknown"
+        lines.append(f" 4、系统安装时间是：{systemtime}")
+        
+        buildid = run_cmd("cat /etc/kylin-build | grep buildid 2>/dev/null") or "Unknown"
+        lines.append(f" 5、系统build-id是：{buildid}")
+        
+        kyhwid = run_cmd("cat /etc/.kyhwid 2>/dev/null") or "Unknown"
+        lines.append(f" 6、操作系统硬件码：{kyhwid}")
+        
+        reg_code = run_cmd("kylin_gen_register 2>/dev/null") or "Unknown"
+        lines.append(f" 7、操作系统注册码：{reg_code}")
+        
+        lines.append(f" 8、操作系统激活码：{register}")
+        lines.append("")
+        
+        return "\n".join(lines)

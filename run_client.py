@@ -9,6 +9,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if __name__ == '__main__':
     from client.gui import MainWindow, KylinClient
     from PyQt5.QtWidgets import QApplication, QMessageBox
+    from PyQt5.QtCore import Qt
+
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
     app = QApplication(sys.argv)
 
@@ -16,7 +20,7 @@ if __name__ == '__main__':
 
     if not client.connect():
         QMessageBox.critical(None, "连接失败", "无法连接到本地服务器，请确保服务已启动")
-        return 1
+        sys.exit(1)
 
     window = MainWindow(client)
     window.show()

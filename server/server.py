@@ -488,6 +488,135 @@ class KylinServerCommands:
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
 
+    @staticmethod
+    def get_detailed_system_info(params):
+        try:
+            possible_paths = [
+                os.path.join(os.path.dirname(__file__), '..', 'core', 'kylin_desktop_system_info.sh'),
+                os.path.join(os.path.dirname(os.path.dirname(__file__)), 'core', 'kylin_desktop_system_info.sh'),
+                '/usr/share/kylin-system-tools/core/kylin_desktop_system_info.sh',
+                '/opt/kylin-system-tools/core/kylin_desktop_system_info.sh',
+                '/usr/local/share/kylin-system-tools/core/kylin_desktop_system_info.sh',
+            ]
+            
+            script_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    script_path = path
+                    break
+            
+            if script_path:
+                os.chmod(script_path, 0o755)
+                result = subprocess.run(
+                    ['bash', script_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                return {
+                    'status': 'success',
+                    'data': {
+                        'output': result.stdout,
+                        'error': result.stderr
+                    }
+                }
+            else:
+                return {'status': 'success', 'data': {'output': KylinServerCommands._get_system_info_python(), 'error': ''}}
+        except subprocess.TimeoutExpired:
+            return {'status': 'error', 'message': '执行超时'}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
+    @staticmethod
+    def _get_system_info_python():
+        def run_cmd(cmd, shell=True):
+            try:
+                result = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=30)
+                return result.stdout.strip()
+            except Exception:
+                return ""
+        
+        lines = []
+        
+        lines.append("=" * 78)
+        lines.append("                    系统基本信息")
+        lines.append("=" * 78)
+        lines.append("")
+        
+        lines.append("硬件信息：")
+        
+        manufacturer = run_cmd('cat /sys/class/dmi/id/sys_vendor 2>/dev/null') or "Unknown"
+        product_name = run_cmd('cat /sys/class/dmi/id/product_name 2>/dev/null') or "Unknown"
+        sncode = run_cmd('dmidecode -s system-serial-number 2>/dev/null') or "Unknown"
+        lines.append(f" 1、主机型号：{manufacturer}-{product_name}  主机SN码：{sncode}")
+        
+        cpu_model = run_cmd("awk -F: '/model name/ {print $2}' /proc/cpuinfo | uniq") or "Unknown"
+        cpu_cores = run_cmd("cat /proc/cpuinfo | grep 'processor' | wc -l") or "Unknown"
+        cpu_usage = run_cmd("top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4}'") or "Unknown"
+        lines.append(f" 2、CPU型号【{cpu_cores}核】：【{cpu_usage}%】{cpu_model.strip()}")
+        
+        mem_total = run_cmd("free -g | awk 'NR==2{print $2}'") or "Unknown"
+        mem_free = run_cmd("free -g | awk 'NR==2{print $7}'") or "Unknown"
+        lines.append(f" 3、总内存/空闲内存: {mem_total} GB / {mem_free} GB")
+        
+        gpu_name = run_cmd("lspci | grep -i vga | awk -F ':' '{print $3}'") or "Unknown"
+        lines.append(f" 4、显卡：{gpu_name.strip()}")
+        
+        root_size = run_cmd("df -h / | awk 'NR==2{print $2}'") or "Unknown"
+        root_avail = run_cmd("df -h / | awk 'NR==2{print $4}'") or "Unknown"
+        lines.append(f" 5、系统根目录空间：{root_size}  剩余可用：{root_avail}")
+        
+        lines.append(" -------------------------")
+        disk_info = run_cmd("lsblk -d -o NAME,SIZE,SERIAL --nodeps | grep -v loop | head -6")
+        lines.append("磁盘名称    磁盘大小    磁盘SN")
+        lines.append(disk_info)
+        lines.append(" -------------------------")
+        
+        net_info = run_cmd("ip -o link show | awk -F': ' '{print $2}' | grep -Ev 'lo|vmnet|docker|utun|virbr0' | head -3")
+        if net_info:
+            for intf in net_info.split('\n'):
+                intf = intf.strip()
+                if intf:
+                    mac = run_cmd(f"ip link show {intf} | grep link/ether | awk '{{print $2}}'") or "Unknown"
+                    lines.append(f" 网卡({intf}): {mac}")
+        
+        lines.append("")
+        lines.append("软件信息：")
+        
+        systemid = run_cmd("cat /etc/.kyinfo | grep dist_id | awk -F'=| ' '{print $2}'") or "Unknown"
+        kylin_serial = run_cmd("cat /etc/.kyinfo | grep key= | awk -F'=' '{print $2}'") or "Unknown"
+        
+        if os.path.exists("/etc/.kyactivation"):
+            service_data = run_cmd("cat /etc/.kyinfo | grep term= | awk -F'=' '{print $2}'")
+            service_text = f"技术服务期到：{service_data}" if service_data else "技术服务期未知"
+            register = run_cmd("cat /etc/.kyactivation") or "Unknown"
+        else:
+            service_text = "【系统未激活无技术服务】"
+            register = "系统未激活"
+        
+        lines.append(f" 1、系统服务序列号：{kylin_serial}  {service_text}")
+        lines.append(f" 2、当前系统版本是：{systemid}")
+        
+        kernel = run_cmd("uname -r") or "Unknown"
+        lines.append(f" 3、当前内核版本是：{kernel}")
+        
+        systemtime = run_cmd("date -r /var/log/installer 2>/dev/null") or "Unknown"
+        lines.append(f" 4、系统安装时间是：{systemtime}")
+        
+        buildid = run_cmd("cat /etc/kylin-build | grep buildid 2>/dev/null") or "Unknown"
+        lines.append(f" 5、系统build-id是：{buildid}")
+        
+        kyhwid = run_cmd("cat /etc/.kyhwid 2>/dev/null") or "Unknown"
+        lines.append(f" 6、操作系统硬件码：{kyhwid}")
+        
+        reg_code = run_cmd("kylin_gen_register 2>/dev/null") or "Unknown"
+        lines.append(f" 7、操作系统注册码：{reg_code}")
+        
+        lines.append(f" 8、操作系统激活码：{register}")
+        lines.append("")
+        
+        return "\n".join(lines)
+
 
 def main():
     import argparse
@@ -516,6 +645,7 @@ def main():
     server.register_handler('cleanup_logs', KylinServerCommands.cleanup_logs)
     server.register_handler('get_system_logs', KylinServerCommands.get_system_logs)
     server.register_handler('get_system_stats', KylinServerCommands.get_system_stats)
+    server.register_handler('get_detailed_system_info', KylinServerCommands.get_detailed_system_info)
 
     print(f"银河麒麟运维管理工具服务端启动中...")
     print(f"监听地址: {args.host}:{args.port}")
