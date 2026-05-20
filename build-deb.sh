@@ -9,7 +9,7 @@ PROJECT_DIR="$SCRIPT_DIR"
 DEB_DIR="$PROJECT_DIR/debian/pkg"
 OUTPUT_DIR="$PROJECT_DIR/output"
 PKG_NAME="kylin-system-tools"
-VERSION="1.0.0"
+VERSION="1.0.1"
 ARCH="${1:-arm64}"
 
 echo "========================================"
@@ -34,6 +34,7 @@ mkdir -p "$DEB_DIR/usr/share/icons/hicolor/256x256/apps"
 mkdir -p "$DEB_DIR/lib/systemd/system"
 mkdir -p "$DEB_DIR/etc/kylin-system-tools"
 mkdir -p "$DEB_DIR/var/log/kylin-system-tools"
+mkdir -p "$DEB_DIR/opt/kylin-clean"
 
 # 复制DEBIAN配置
 echo "[3/6] 复制DEBIAN配置..."
@@ -80,6 +81,32 @@ chmod 644 "$DEB_DIR/usr/share/kylin-system-tools/ui/"*.py
 
 # 创建日志目录占位
 touch "$DEB_DIR/var/log/kylin-system-tools/.gitkeep"
+
+# 复制kylin-clean-tools服务文件
+echo "[5.5/6] 复制kylin-clean-tools文件..."
+cp "$PROJECT_DIR/kylin-cleanup_1.3.9.3_all/lib/systemd/system/kylin-clean-tools.service" "$DEB_DIR/lib/systemd/system/"
+cp "$PROJECT_DIR/kylin-cleanup_1.3.9.3_all/opt/kylin-cleanup/clean_linux.py" "$DEB_DIR/opt/kylin-clean/"
+cp "$PROJECT_DIR/kylin-cleanup_1.3.9.3_all/opt/kylin-cleanup/notify_clean_linux.py" "$DEB_DIR/opt/kylin-clean/"
+cp "$PROJECT_DIR/kylin-cleanup_1.3.9.3_all/opt/kylin-cleanup/license_manager.py" "$DEB_DIR/opt/kylin-clean/"
+cp "$PROJECT_DIR/kylin-cleanup_1.3.9.3_all/opt/kylin-cleanup/popup_warning.py" "$DEB_DIR/opt/kylin-clean/"
+cp "$PROJECT_DIR/kylin-cleanup_1.3.9.3_all/opt/kylin-cleanup/ui_assets.py" "$DEB_DIR/opt/kylin-clean/"
+cp "$PROJECT_DIR/kylin-cleanup_1.3.9.3_all/opt/kylin-cleanup/cleanup_user_data.sh" "$DEB_DIR/opt/kylin-clean/"
+cp "$PROJECT_DIR/kylin-cleanup_1.3.9.3_all/opt/kylin-cleanup/service_toggle.sh" "$DEB_DIR/opt/kylin-clean/"
+mkdir -p "$DEB_DIR/opt/kylin-clean/schedule"
+cp "$PROJECT_DIR/kylin-cleanup_1.3.9.3_all/opt/kylin-cleanup/schedule/__init__.py" "$DEB_DIR/opt/kylin-clean/schedule/"
+cp "$PROJECT_DIR/kylin-cleanup_1.3.9.3_all/opt/kylin-cleanup/schedule/py.typed" "$DEB_DIR/opt/kylin-clean/schedule/"
+
+# 创建配置目录
+mkdir -p "$DEB_DIR/etc/kylin-clean"
+touch "$DEB_DIR/etc/kylin-clean/config.sh"
+
+# 设置kylin-clean-tools文件权限
+chmod 644 "$DEB_DIR/lib/systemd/system/kylin-clean-tools.service"
+chmod 644 "$DEB_DIR/opt/kylin-clean/"*.py
+chmod 644 "$DEB_DIR/opt/kylin-clean/schedule/"*.py
+chmod 755 "$DEB_DIR/opt/kylin-clean/"*.sh
+chmod 755 "$DEB_DIR/etc/kylin-clean"
+chmod 644 "$DEB_DIR/etc/kylin-clean/config.sh"
 
 # 修改control文件中的架构
 if [ "$ARCH" = "all" ]; then

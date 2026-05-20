@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""检查文件换行符的脚本"""
+"""检查和修复文件换行符的脚本"""
 
 import os
 import sys
@@ -28,10 +28,27 @@ def check_file_line_endings(filepath):
     except Exception as e:
         return f'Error: {e}'
 
+def convert_to_lf(filepath):
+    """将文件转换为LF换行符"""
+    try:
+        with open(filepath, 'rb') as f:
+            content = f.read()
+        
+        content = content.replace(b'\r\n', b'\n')
+        content = content.replace(b'\r', b'\n')
+        
+        with open(filepath, 'wb') as f:
+            f.write(content)
+        
+        return True
+    except Exception as e:
+        return False
+
 def main():
-    base_dir = r'e:\Operation_Tools'
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # 要检查的文件列表
+    convert_mode = len(sys.argv) > 1 and sys.argv[1] == '--convert'
+    
     check_patterns = [
         ('Python Scripts', '**/*.py'),
         ('Shell Scripts', '**/*.sh'),
@@ -40,16 +57,25 @@ def main():
         ('Desktop Files', 'debian/kylin-system-tools/usr/share/applications/*.desktop'),
         ('Service Files', '**/*.service'),
         ('Config Files', '**/*.json'),
+        ('Core Files', 'core/**/*.py'),
+        ('Client Files', 'client/**/*.py'),
+        ('Server Files', 'server/**/*.py'),
+        ('UI Files', 'ui/**/*.py'),
     ]
     
-    print("=" * 70)
-    print("文件换行符检查报告")
-    print("=" * 70)
+    if convert_mode:
+        print("=" * 70)
+        print("文件换行符转换工具 - LF格式转换模式")
+        print("=" * 70)
+    else:
+        print("=" * 70)
+        print("文件换行符检查报告")
+        print("=" * 70)
     print()
     
     import glob
     
-    all_stats = {'Windows (CRLF)': 0, 'Linux (LF)': 0, 'Unknown': 0, 'Error': 0}
+    all_stats = {'Windows (CRLF)': 0, 'Linux (LF)': 0, 'Unknown': 0, 'Error': 0, 'Converted': 0}
     problem_files = []
     
     for category, pattern in check_patterns:
@@ -66,20 +92,30 @@ def main():
         for filepath in files:
             if os.path.isfile(filepath):
                 status = check_file_line_endings(filepath)
-                if 'Error' in status:
-                    all_stats['Error'] += 1
+                
+                if convert_mode and status == 'Windows (CRLF)':
+                    if convert_to_lf(filepath):
+                        status = 'Converted'
+                        all_stats['Converted'] += 1
+                    else:
+                        status = 'Error'
+                        all_stats['Error'] += 1
                 else:
-                    all_stats[status] += 1
+                    if 'Error' in status:
+                        all_stats['Error'] += 1
+                    else:
+                        all_stats[status] += 1
                 
                 if status == 'Windows (CRLF)':
                     problem_files.append(filepath)
                 
-                # 只显示相对路径
                 rel_path = os.path.relpath(filepath, base_dir)
                 if status == 'Linux (LF)':
                     status_text = "[OK]"
+                elif status == 'Converted':
+                    status_text = "[CONV]"
                 else:
-                    status_text = "[!!"
+                    status_text = "[!!]"
                 print(f"  {status_text} {rel_path}: {status}")
     
     print("\n" + "=" * 70)
@@ -87,21 +123,17 @@ def main():
     print("=" * 70)
     print(f"  Linux (LF)   : {all_stats['Linux (LF)']} 个文件")
     print(f"  Windows (CRLF): {all_stats['Windows (CRLF)']} 个文件")
+    print(f"  Converted     : {all_stats['Converted']} 个文件")
     print(f"  Unknown       : {all_stats['Unknown']} 个文件")
     print(f"  Error         : {all_stats['Error']} 个文件")
     
-    if problem_files:
-        print("\n" + "=" * 70)
-        print("需要修复的文件")
-        print("=" * 70)
-        for f in problem_files:
-            print(f"  {os.path.relpath(f, base_dir)}")
-    
     if all_stats['Windows (CRLF)'] == 0:
-        print("\n[SUCCESS: 所有文件已正确转换为 Linux 格式！")
+        print("\n[SUCCESS]: 所有文件已正确转换为 Linux 格式！")
         return 0
     else:
-        print(f"\n[FAIL]: 还有 {all_stats['Windows (CRLF)']} 个文件需要转换")
+        print(f"\n[INFO]: 还有 {all_stats['Windows (CRLF)']} 个文件需要转换")
+        if not convert_mode:
+            print("        使用 --convert 参数运行脚本进行转换")
         return 1
 
 if __name__ == '__main__':

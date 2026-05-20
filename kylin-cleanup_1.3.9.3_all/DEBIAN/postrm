@@ -1,0 +1,11 @@
+#!/bin/bash
+systemctl daemon-reload || true
+
+# 清理桌面快捷方式
+deploy_user=${SUDO_USER:-$USER}
+user_home=$(eval echo ~$deploy_user)
+rm -f "$user_home/桌面"/kylin-cleanup*.desktop 2>/dev/null || true
+rm -f "$user_home/Desktop"/kylin-cleanup*.desktop 2>/dev/null || true
+
+echo "Kylin / openKylin 清理工具已完全卸载。"
+exit 0

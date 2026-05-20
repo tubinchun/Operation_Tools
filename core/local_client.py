@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from core.commands import SystemCommands
+from core.commands import SystemCommands, CleanupCommands
 
 
 class LocalClient:
@@ -100,3 +100,18 @@ class LocalClient:
 
     def fix_printer(self):
         return SystemCommands.fix_printer()
+
+    def run_cleanup(self):
+        return CleanupCommands.run_cleanup()
+
+    def get_cleanup_config(self):
+        return CleanupCommands.get_cleanup_config()
+
+    def update_cleanup_config(self, config):
+        return CleanupCommands.update_cleanup_config(config)
+
+    def get_cleanup_status(self):
+        return CleanupCommands.get_cleanup_status()
+
+    def control_cleanup_service(self, action):
+        return CleanupCommands.control_cleanup_service(action)

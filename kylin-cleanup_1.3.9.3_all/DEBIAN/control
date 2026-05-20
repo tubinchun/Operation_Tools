@@ -1,0 +1,13 @@
+Package: kylin-cleanup
+Version: 1.3.9
+Section: utils
+Priority: optional
+Architecture: all
+Depends: bash, libnotify-bin, python3-pyqt5, python3-pil, python3-qrcode, python3-requests
+Recommends: python3
+Maintainer: Genwang Ye <admin@localhost>
+Description: Kylin / openKylin 用户数据清理工具
+ 一键清理用户文档、下载、图片、视频和桌面目录中的指定类型文件。
+ 支持离线运行，自带图形化设置界面和自启动管理。
+ 清理完成后会发送桌面通知显示清理结果。
+Icon: /usr/share/pixmaps/kylin-cleanup.png

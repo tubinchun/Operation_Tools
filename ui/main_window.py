@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (
     QLineEdit, QSpinBox, QCheckBox, QSplitter,
     QScrollArea, QProgressBar, QDialog, QListWidget,
     QListWidgetItem, QAbstractItemView, QTableView, QHeaderView,
-    QGridLayout, QFrame, QSizePolicy, QFileDialog
+    QGridLayout, QFrame, QSizePolicy, QFileDialog, QRadioButton
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot, QTimer, QPointF, QRect
 from PyQt5.QtGui import QFont, QIcon, QPalette, QColor, QPainter, QPainterPath, QLinearGradient, QPen, QBrush
@@ -155,6 +155,54 @@ QLineEdit:focus {{
 QLineEdit:disabled {{
     background-color: {BACKGROUND_HOVER};
     color: {TEXT_DISABLED};
+}}
+"""
+
+COMBO_BOX_STYLE = f"""
+QComboBox {{
+    background-color: {BACKGROUND_SECONDARY};
+    border-radius: {CORNER_BUTTON}px;
+    border: 1px solid {DIVIDER};
+    padding: 8px 12px;
+    font-family: {FONT_FAMILY};
+    font-size: {FONT_SIZE_NORMAL}px;
+    color: {TEXT_PRIMARY};
+    min-height: 32px;
+}}
+QComboBox:hover {{
+    border-color: {MAC_BLUE};
+}}
+QComboBox:focus {{
+    border-color: {MAC_BLUE};
+    background-color: {BACKGROUND_MAIN};
+}}
+QComboBox QAbstractItemView {{
+    background-color: {BACKGROUND_MAIN};
+    border: 1px solid {DIVIDER};
+    border-radius: {CORNER_BUTTON}px;
+    selection-background-color: {MAC_BLUE};
+}}
+"""
+
+CHECKBOX_STYLE = f"""
+QCheckBox {{
+    color: {TEXT_PRIMARY};
+    font-family: {FONT_FAMILY};
+    font-size: {FONT_SIZE_NORMAL}px;
+}}
+QCheckBox::indicator {{
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    border: 2px solid {DIVIDER};
+    background-color: {BACKGROUND_MAIN};
+}}
+QCheckBox::indicator:checked {{
+    background-color: {MAC_BLUE};
+    border-color: {MAC_BLUE};
+}}
+QCheckBox::indicator:checked::unchecked {{
+    background-color: {BACKGROUND_MAIN};
 }}
 """
 
@@ -1603,7 +1651,8 @@ class HostsEditorDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("自定义本地域名解析文件")
-        self.setFixedSize(700, 500)
+        self.setMinimumSize(600, 400)
+        self.resize(700, 500)
         self.setStyleSheet(f"background-color: {BACKGROUND_MAIN};")
         
         self.hosts_path = '/etc/hosts'
@@ -1627,6 +1676,9 @@ class HostsEditorDialog(QDialog):
 
         self.text_edit = QTextEdit()
         self.text_edit.setFont(QFont("Consolas", 11))
+        self.text_edit.setLineWrapMode(QTextEdit.NoWrap)
+        self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.text_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.text_edit.setStyleSheet(f"""
             QTextEdit {{
                 background-color: {BACKGROUND_SECONDARY};
@@ -1635,8 +1687,19 @@ class HostsEditorDialog(QDialog):
                 padding: 12px;
                 color: {TEXT_PRIMARY};
             }}
+            QTextEdit QScrollBar {{
+                width: 12px;
+                height: 12px;
+            }}
+            QTextEdit QScrollBar::handle {{
+                background-color: {TEXT_DISABLED};
+                border-radius: 6px;
+            }}
+            QTextEdit QScrollBar::handle:hover {{
+                background-color: {TEXT_SECONDARY};
+            }}
         """)
-        main_layout.addWidget(self.text_edit)
+        main_layout.addWidget(self.text_edit, stretch=1)
 
         self.status_label = QLabel("")
         self.status_label.setFont(create_font(FONT_SIZE_SMALL))
@@ -2268,6 +2331,862 @@ class PrinterRepairDialog(QDialog):
         event.accept()
 
 
+class CleanupPage(QWidget):
+    def __init__(self, client, parent=None):
+        super().__init__(parent)
+        self.client = client
+        self._is_destroyed = False
+        self.config = {}
+        self._threads = []
+        self.init_ui()
+        self.load_config()
+        self.load_status()
+        self.load_disk_info()
+
+    def init_ui(self):
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        status_bar = QFrame()
+        status_bar.setStyleSheet(f"background-color: {BACKGROUND_SECONDARY};")
+        status_bar_layout = QHBoxLayout(status_bar)
+        status_bar_layout.setContentsMargins(12, 10, 12, 10)
+        status_bar_layout.setSpacing(12)
+
+        status_group = QWidget()
+        status_group_layout = QHBoxLayout(status_group)
+        status_group_layout.setContentsMargins(0, 0, 0, 0)
+        status_group_layout.setSpacing(8)
+        
+        status_label = QLabel("服务状态:")
+        status_label.setFont(create_font(FONT_SIZE_NORMAL))
+        status_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        status_group_layout.addWidget(status_label)
+        
+        self.status_value = QLabel("运行中")
+        self.status_value.setFont(create_font(FONT_SIZE_NORMAL, "semibold"))
+        self.status_value.setStyleSheet(f"color: {MAC_GREEN};")
+        status_group_layout.addWidget(self.status_value)
+        
+        status_icon = QLabel()
+        status_icon.setPixmap(QIcon.fromTheme("emblem-ok").pixmap(16, 16))
+        status_group_layout.addWidget(status_icon)
+        
+        status_bar_layout.addWidget(status_group)
+        
+        status_bar_layout.addStretch()
+
+        self.auto_start_check = QCheckBox("开机自启动")
+        self.auto_start_check.setStyleSheet(f"""
+            QCheckBox {{
+                color: {TEXT_PRIMARY};
+                font-size: {FONT_SIZE_NORMAL}px;
+            }}
+            QCheckBox::indicator {{
+                width: 18px;
+                height: 18px;
+            }}
+        """)
+        self.auto_start_check.stateChanged.connect(self.update_auto_start)
+        status_bar_layout.addWidget(self.auto_start_check)
+
+        refresh_btn = QPushButton()
+        refresh_btn.setIcon(QIcon.fromTheme("view-refresh"))
+        refresh_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        refresh_btn.setFixedSize(36, 30)
+        refresh_btn.clicked.connect(self.load_status)
+        status_bar_layout.addWidget(refresh_btn)
+        
+        main_layout.addWidget(status_bar)
+
+        disk_bar = QFrame()
+        disk_bar.setStyleSheet(f"background-color: {BACKGROUND_MAIN};")
+        disk_bar_layout = QVBoxLayout(disk_bar)
+        disk_bar_layout.setContentsMargins(12, 10, 12, 10)
+        disk_bar_layout.setSpacing(8)
+
+        disk_label = QLabel("磁盘容量 (/home):")
+        disk_label.setFont(create_font(FONT_SIZE_SMALL))
+        disk_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        disk_bar_layout.addWidget(disk_label)
+
+        disk_info_layout = QHBoxLayout()
+        self.disk_info_label = QLabel("已用 0.0 GB / 总共 0.0 GB")
+        self.disk_info_label.setFont(create_font(FONT_SIZE_SMALL))
+        self.disk_info_label.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        self.disk_info_label.setWordWrap(False)
+        disk_info_layout.addWidget(self.disk_info_label)
+        disk_info_layout.addStretch()
+        
+        self.disk_percent_label = QLabel("0%")
+        self.disk_percent_label.setFont(create_font(FONT_SIZE_SMALL))
+        self.disk_percent_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        disk_info_layout.addWidget(self.disk_percent_label)
+        disk_bar_layout.addLayout(disk_info_layout)
+
+        self.disk_progress = QProgressBar()
+        self.disk_progress.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {BACKGROUND_SECONDARY};
+                border-radius: {CORNER_BUTTON}px;
+                height: 8px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {MAC_BLUE};
+                border-radius: {CORNER_BUTTON}px;
+            }}
+        """)
+        self.disk_progress.setValue(0)
+        disk_bar_layout.addWidget(self.disk_progress)
+        
+        main_layout.addWidget(disk_bar)
+
+        self.tabs = QTabWidget()
+        self.tabs.setStyleSheet(TAB_WIDGET_STYLE)
+
+        self.init_schedule_tab()
+        self.init_cleanup_settings_tab()
+        self.init_quick_actions_tab()
+
+        main_layout.addWidget(self.tabs, stretch=1)
+
+        bottom_bar = QFrame()
+        bottom_bar.setStyleSheet(f"background-color: {BACKGROUND_SECONDARY};")
+        bottom_bar_layout = QHBoxLayout(bottom_bar)
+        bottom_bar_layout.setContentsMargins(12, 10, 12, 10)
+        bottom_bar_layout.setSpacing(10)
+
+        bottom_bar_layout.addStretch()
+
+        restore_btn = QPushButton("恢复默认")
+        restore_btn.setIcon(QIcon.fromTheme("edit-undo"))
+        restore_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        restore_btn.clicked.connect(self.restore_default)
+        bottom_bar_layout.addWidget(restore_btn)
+
+        save_btn = QPushButton("保存设置")
+        save_btn.setIcon(QIcon.fromTheme("document-save"))
+        save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #34C759;
+                color: white;
+                border: none;
+                border-radius: {CORNER_BUTTON}px;
+                padding: 8px 24px;
+                font-family: {FONT_FAMILY};
+                font-size: {FONT_SIZE_NORMAL}px;
+                font-weight: 500;
+                min-height: 32px;
+            }}
+            QPushButton:hover {{
+                background-color: #2EAF4F;
+            }}
+            QPushButton:pressed {{
+                background-color: #269641;
+            }}
+            QPushButton:disabled {{
+                background-color: {TEXT_DISABLED};
+            }}
+        """)
+        save_btn.clicked.connect(self.save_config)
+        bottom_bar_layout.addWidget(save_btn)
+        
+        main_layout.addWidget(bottom_bar)
+
+        self.setLayout(main_layout)
+
+    def init_schedule_tab(self):
+        schedule_tab = QWidget()
+        schedule_layout = QVBoxLayout(schedule_tab)
+        schedule_layout.setContentsMargins(12, 12, 12, 12)
+        schedule_layout.setSpacing(12)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet(f"""
+            QScrollArea {{
+                border: none;
+                background-color: {BACKGROUND_MAIN};
+            }}
+            QScrollBar:vertical {{
+                width: 12px;
+                background-color: {BACKGROUND_SECONDARY};
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {TEXT_DISABLED};
+                border-radius: 6px;
+                min-height: 30px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {TEXT_SECONDARY};
+            }}
+        """)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_layout.setSpacing(12)
+
+        schedule_group = QGroupBox("定时清理")
+        schedule_group_layout = QVBoxLayout(schedule_group)
+        schedule_group_layout.setContentsMargins(12, 12, 12, 12)
+        schedule_group_layout.setSpacing(12)
+
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(12)
+        label = QLabel("每日定时清理准点:")
+        label.setFont(create_font(FONT_SIZE_NORMAL))
+        label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        row_layout.addWidget(label)
+        
+        self.daily_time_edit = QLineEdit("18:00")
+        self.daily_time_edit.setStyleSheet(LINE_EDIT_STYLE)
+        self.daily_time_edit.setMinimumWidth(80)
+        self.daily_time_edit.setMaximumWidth(100)
+        row_layout.addWidget(self.daily_time_edit)
+        row_layout.addStretch()
+        schedule_group_layout.addLayout(row_layout)
+
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(12)
+        label = QLabel("执行频率:")
+        label.setFont(create_font(FONT_SIZE_NORMAL))
+        label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        row_layout.addWidget(label)
+        
+        self.frequency_combo = QComboBox()
+        self.frequency_combo.addItems(["每天 (Daily)", "每周 (Weekly)", "每月 (Monthly)"])
+        self.frequency_combo.setStyleSheet(COMBO_BOX_STYLE)
+        self.frequency_combo.setMinimumWidth(150)
+        self.frequency_combo.setMaximumWidth(180)
+        row_layout.addWidget(self.frequency_combo)
+        row_layout.addStretch()
+        schedule_group_layout.addLayout(row_layout)
+
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(12)
+        label = QLabel("高频后台巡逻:")
+        label.setFont(create_font(FONT_SIZE_NORMAL))
+        label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        row_layout.addWidget(label)
+        
+        self.patrol_combo = QComboBox()
+        self.patrol_combo.addItems(["关闭 (按计划执行)", "每小时", "每6小时", "每12小时"])
+        self.patrol_combo.setStyleSheet(COMBO_BOX_STYLE)
+        self.patrol_combo.setMinimumWidth(180)
+        self.patrol_combo.setMaximumWidth(220)
+        row_layout.addWidget(self.patrol_combo)
+        row_layout.addStretch()
+        schedule_group_layout.addLayout(row_layout)
+
+        self.boot_clean_check = QCheckBox("每次开机时自动执行一次后台系统清理")
+        self.boot_clean_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        schedule_group_layout.addWidget(self.boot_clean_check)
+
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(12)
+        label = QLabel("提前提醒:")
+        label.setFont(create_font(FONT_SIZE_NORMAL))
+        label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        row_layout.addWidget(label)
+        
+        self.reminder_spin = QSpinBox()
+        self.reminder_spin.setRange(1, 60)
+        self.reminder_spin.setValue(5)
+        self.reminder_spin.setMinimumWidth(60)
+        self.reminder_spin.setMaximumWidth(80)
+        row_layout.addWidget(self.reminder_spin)
+        
+        label = QLabel("分钟")
+        label.setFont(create_font(FONT_SIZE_NORMAL))
+        label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        row_layout.addWidget(label)
+        row_layout.addStretch()
+        schedule_group_layout.addLayout(row_layout)
+
+        scroll_layout.addWidget(schedule_group)
+
+        shutdown_group = QGroupBox("定时关机")
+        shutdown_group_layout = QVBoxLayout(shutdown_group)
+        shutdown_group_layout.setContentsMargins(12, 12, 12, 12)
+        shutdown_group_layout.setSpacing(12)
+
+        self.shutdown_enable_check = QCheckBox("启用定时关机")
+        self.shutdown_enable_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        self.shutdown_enable_check.stateChanged.connect(self.toggle_shutdown_settings)
+        shutdown_group_layout.addWidget(self.shutdown_enable_check)
+
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(12)
+        label = QLabel("每日关机时间:")
+        label.setFont(create_font(FONT_SIZE_NORMAL))
+        label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        row_layout.addWidget(label)
+        
+        self.shutdown_time_edit = QLineEdit("20:00")
+        self.shutdown_time_edit.setStyleSheet(LINE_EDIT_STYLE)
+        self.shutdown_time_edit.setMinimumWidth(80)
+        self.shutdown_time_edit.setMaximumWidth(100)
+        self.shutdown_time_edit.setEnabled(False)
+        row_layout.addWidget(self.shutdown_time_edit)
+        row_layout.addStretch()
+        shutdown_group_layout.addLayout(row_layout)
+
+        warning_label = QLabel("⚠️ 关机前10分钟会收到系统通知提醒")
+        warning_label.setFont(create_font(FONT_SIZE_SMALL))
+        warning_label.setStyleSheet("color: #FF9500;")
+        warning_label.setWordWrap(True)
+        shutdown_group_layout.addWidget(warning_label)
+
+        scroll_layout.addWidget(shutdown_group)
+        scroll_layout.addStretch()
+
+        scroll_area.setWidget(scroll_content)
+        schedule_layout.addWidget(scroll_area, stretch=1)
+
+        self.tabs.addTab(schedule_tab, "定时任务")
+
+    def init_cleanup_settings_tab(self):
+        settings_tab = QWidget()
+        settings_layout = QVBoxLayout(settings_tab)
+        settings_layout.setContentsMargins(12, 12, 12, 12)
+        settings_layout.setSpacing(12)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet(f"""
+            QScrollArea {{
+                border: none;
+                background-color: {BACKGROUND_MAIN};
+            }}
+            QScrollBar:vertical {{
+                width: 12px;
+                background-color: {BACKGROUND_SECONDARY};
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {TEXT_DISABLED};
+                border-radius: 6px;
+                min-height: 30px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {TEXT_SECONDARY};
+            }}
+        """)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_layout.setSpacing(12)
+
+        dirs_group = QGroupBox("清理目录")
+        dirs_group_layout = QGridLayout(dirs_group)
+        dirs_group_layout.setContentsMargins(12, 12, 12, 12)
+        dirs_group_layout.setSpacing(10)
+        dirs_group_layout.setColumnStretch(0, 1)
+        dirs_group_layout.setColumnStretch(1, 1)
+
+        self.desktop_check = QCheckBox("桌面")
+        self.desktop_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        dirs_group_layout.addWidget(self.desktop_check, 0, 0)
+
+        self.download_check = QCheckBox("下载")
+        self.download_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        dirs_group_layout.addWidget(self.download_check, 0, 1)
+
+        self.documents_check = QCheckBox("文档")
+        self.documents_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        dirs_group_layout.addWidget(self.documents_check, 1, 0)
+
+        self.pictures_check = QCheckBox("图片")
+        self.pictures_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        dirs_group_layout.addWidget(self.pictures_check, 1, 1)
+
+        self.videos_check = QCheckBox("视频")
+        self.videos_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        dirs_group_layout.addWidget(self.videos_check, 2, 0)
+
+        self.trash_check = QCheckBox("回收站")
+        self.trash_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        dirs_group_layout.addWidget(self.trash_check, 2, 1)
+
+        scroll_layout.addWidget(dirs_group)
+
+        browser_check = QCheckBox("深度清理常用浏览器缓存 (Firefox, Chrome, Edge, 360等)")
+        browser_check.setStyleSheet(f"color: {MAC_BLUE};")
+        browser_check.setChecked(True)
+        scroll_layout.addWidget(browser_check)
+
+        system_group = QGroupBox("高级系统清理")
+        system_group_layout = QVBoxLayout(system_group)
+        system_group_layout.setContentsMargins(12, 12, 12, 12)
+        system_group_layout.setSpacing(10)
+
+        self.apt_check = QCheckBox("清理陈旧的APT安装包缓存 (释放大量系统盘空间)")
+        self.apt_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        system_group_layout.addWidget(self.apt_check)
+
+        self.journal_check = QCheckBox("清理Systemd历史运行日志 (仅保留最近7天)")
+        self.journal_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        system_group_layout.addWidget(self.journal_check)
+
+        self.thumbnails_check = QCheckBox("清理陈旧的图片与视频缩略图缓存")
+        self.thumbnails_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        system_group_layout.addWidget(self.thumbnails_check)
+
+        scroll_layout.addWidget(system_group)
+
+        mode_group = QGroupBox("清理模式")
+        mode_group_layout = QVBoxLayout(mode_group)
+        mode_group_layout.setContentsMargins(12, 12, 12, 12)
+        mode_group_layout.setSpacing(10)
+
+        self.mode_all_radio = QRadioButton("清理全部文件 (保留排除扩展名)")
+        self.mode_all_radio.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        self.mode_all_radio.setChecked(True)
+        mode_group_layout.addWidget(self.mode_all_radio)
+
+        self.mode_ext_radio = QRadioButton("仅清理指定扩展名的文件")
+        self.mode_ext_radio.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        mode_group_layout.addWidget(self.mode_ext_radio)
+
+        scroll_layout.addWidget(mode_group)
+        scroll_layout.addStretch()
+
+        scroll_area.setWidget(scroll_content)
+        settings_layout.addWidget(scroll_area, stretch=1)
+
+        self.tabs.addTab(settings_tab, "清理设置")
+
+    def init_quick_actions_tab(self):
+        actions_tab = QWidget()
+        actions_layout = QVBoxLayout(actions_tab)
+        actions_layout.setContentsMargins(12, 12, 12, 12)
+        actions_layout.setSpacing(12)
+
+        service_group = QGroupBox("服务控制")
+        service_group_layout = QHBoxLayout(service_group)
+        service_group_layout.setContentsMargins(12, 12, 12, 12)
+        service_group_layout.setSpacing(10)
+
+        start_btn = QPushButton("启动服务")
+        start_btn.setIcon(QIcon.fromTheme("media-playback-start"))
+        start_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #34C759;
+                color: white;
+                border: none;
+                border-radius: {CORNER_BUTTON}px;
+                padding: 10px 16px;
+                font-family: {FONT_FAMILY};
+                font-size: {FONT_SIZE_NORMAL}px;
+                font-weight: 500;
+                min-height: 36px;
+            }}
+            QPushButton:hover {{
+                background-color: #2EAF4F;
+            }}
+        """)
+        start_btn.clicked.connect(lambda: self.control_service("start"))
+        service_group_layout.addWidget(start_btn, stretch=1)
+
+        stop_btn = QPushButton("停止服务")
+        stop_btn.setIcon(QIcon.fromTheme("media-playback-stop"))
+        stop_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #FF3B30;
+                color: white;
+                border: none;
+                border-radius: {CORNER_BUTTON}px;
+                padding: 10px 16px;
+                font-family: {FONT_FAMILY};
+                font-size: {FONT_SIZE_NORMAL}px;
+                font-weight: 500;
+                min-height: 36px;
+            }}
+            QPushButton:hover {{
+                background-color: #FF453A;
+            }}
+        """)
+        stop_btn.clicked.connect(lambda: self.control_service("stop"))
+        service_group_layout.addWidget(stop_btn, stretch=1)
+
+        restart_btn = QPushButton("重启服务")
+        restart_btn.setIcon(QIcon.fromTheme("system-restart"))
+        restart_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {MAC_BLUE};
+                color: white;
+                border: none;
+                border-radius: {CORNER_BUTTON}px;
+                padding: 10px 16px;
+                font-family: {FONT_FAMILY};
+                font-size: {FONT_SIZE_NORMAL}px;
+                font-weight: 500;
+                min-height: 36px;
+            }}
+            QPushButton:hover {{
+                background-color: #0066CC;
+            }}
+        """)
+        restart_btn.clicked.connect(lambda: self.control_service("restart"))
+        service_group_layout.addWidget(restart_btn, stretch=1)
+
+        actions_layout.addWidget(service_group)
+
+        cleanup_group = QGroupBox("清理操作")
+        cleanup_group_layout = QVBoxLayout(cleanup_group)
+        cleanup_group_layout.setContentsMargins(12, 12, 12, 12)
+        cleanup_group_layout.setSpacing(10)
+
+        self.run_cleanup_btn = QPushButton("立即执行清理")
+        self.run_cleanup_btn.setIcon(QIcon.fromTheme("edit-delete"))
+        self.run_cleanup_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {MAC_BLUE};
+                color: white;
+                border: none;
+                border-radius: {CORNER_BUTTON}px;
+                padding: 12px 24px;
+                font-family: {FONT_FAMILY};
+                font-size: {FONT_SIZE_NORMAL}px;
+                font-weight: 600;
+                min-height: 44px;
+            }}
+            QPushButton:hover {{
+                background-color: #0066CC;
+            }}
+            QPushButton:disabled {{
+                background-color: {TEXT_DISABLED};
+            }}
+        """)
+        self.run_cleanup_btn.clicked.connect(self.run_cleanup)
+        cleanup_group_layout.addWidget(self.run_cleanup_btn)
+
+        hint_label = QLabel("将根据当前的「清理设置」立即执行一次任务")
+        hint_label.setFont(create_font(FONT_SIZE_SMALL))
+        hint_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        hint_label.setAlignment(Qt.AlignCenter)
+        hint_label.setWordWrap(True)
+        cleanup_group_layout.addWidget(hint_label)
+
+        actions_layout.addWidget(cleanup_group)
+
+        log_group = QGroupBox("运行日志 (最后100行)")
+        log_group_layout = QVBoxLayout(log_group)
+        log_group_layout.setContentsMargins(12, 12, 12, 12)
+        log_group_layout.setSpacing(10)
+
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.log_text.setFont(QFont("Consolas", 11))
+        self.log_text.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.log_text.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.log_text.setMinimumHeight(200)
+        self.log_text.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {BACKGROUND_SECONDARY};
+                border: 1px solid {DIVIDER};
+                border-radius: {CORNER_BUTTON}px;
+                padding: 12px;
+                color: {TEXT_PRIMARY};
+            }}
+            QScrollBar:vertical {{
+                width: 12px;
+                background-color: {BACKGROUND_MAIN};
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {TEXT_DISABLED};
+                border-radius: 6px;
+                min-height: 30px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {TEXT_SECONDARY};
+            }}
+        """)
+        self.log_text.setPlaceholderText("运行日志将显示在这里...")
+        log_group_layout.addWidget(self.log_text, stretch=1)
+
+        refresh_log_btn = QPushButton("刷新日志")
+        refresh_log_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
+        refresh_log_btn.clicked.connect(self.load_log)
+        log_group_layout.addWidget(refresh_log_btn)
+
+        actions_layout.addWidget(log_group, stretch=1)
+
+        self.tabs.addTab(actions_tab, "快捷操作")
+
+    def toggle_shutdown_settings(self, state):
+        enabled = state == Qt.Checked
+        self.shutdown_time_edit.setEnabled(enabled)
+
+    def load_disk_info(self):
+        try:
+            import shutil
+            total, used, free = shutil.disk_usage('/home')
+            total_gb = total / (1024**3)
+            used_gb = used / (1024**3)
+            percent = int((used / total) * 100)
+            
+            self.disk_info_label.setText(f"已用 {used_gb:.1f} GB / 总共 {total_gb:.1f} GB")
+            self.disk_percent_label.setText(f"{percent}%")
+            self.disk_progress.setValue(percent)
+        except Exception as e:
+            pass
+
+    def load_config(self):
+        def fetch():
+            return self.client.get_cleanup_config()
+
+        def on_result(result):
+            if self._is_destroyed:
+                return
+            if result.get('status') == 'success':
+                self.config = result.get('data', {})
+                
+                self.daily_time_edit.setText(self.config.get('CLEANUP_TIME', '18:00'))
+                freq = self.config.get('CLEANUP_FREQUENCY', 'daily')
+                freq_map = {'daily': 0, 'weekly': 1, 'monthly': 2}
+                self.frequency_combo.setCurrentIndex(freq_map.get(freq, 0))
+                
+                self.shutdown_time_edit.setText(self.config.get('SHUTDOWN_TIME', '20:00'))
+                self.shutdown_enable_check.setChecked(self.config.get('SHUTDOWN_ENABLED', 'no') == 'yes')
+                
+                dirs = self.config.get('CLEANUP_DIRS', '').split(',')
+                self.desktop_check.setChecked('Desktop' in dirs)
+                self.download_check.setChecked('Downloads' in dirs)
+                self.documents_check.setChecked('Documents' in dirs)
+                self.pictures_check.setChecked('Pictures' in dirs)
+                self.videos_check.setChecked('Videos' in dirs)
+                self.trash_check.setChecked('Trash' in dirs)
+                
+                self.apt_check.setChecked(self.config.get('CLEANUP_SYS_APT', 'no') == 'yes')
+                self.journal_check.setChecked(self.config.get('CLEANUP_SYS_JOURNAL', 'no') == 'yes')
+                self.thumbnails_check.setChecked(self.config.get('CLEANUP_SYS_THUMBNAILS', 'no') == 'yes')
+                
+                mode = self.config.get('CLEANUP_MODE', 'all')
+                self.mode_all_radio.setChecked(mode == 'all')
+                self.mode_ext_radio.setChecked(mode == 'ext_only')
+                
+                self.boot_clean_check.setChecked(self.config.get('CLEANUP_ON_BOOT', 'no') == 'yes')
+                self.auto_start_check.setChecked(self.config.get('SHUTDOWN_ENABLED', 'no') == 'yes')
+
+        thread = WorkerThread(fetch)
+        thread.finished.connect(on_result)
+        thread.finished.connect(lambda: self._threads.remove(thread) if thread in self._threads else None)
+        self._threads.append(thread)
+        thread.start()
+
+    def save_config(self):
+        dirs = []
+        if self.desktop_check.isChecked():
+            dirs.append('Desktop')
+        if self.download_check.isChecked():
+            dirs.append('Downloads')
+        if self.documents_check.isChecked():
+            dirs.append('Documents')
+        if self.pictures_check.isChecked():
+            dirs.append('Pictures')
+        if self.videos_check.isChecked():
+            dirs.append('Videos')
+        if self.trash_check.isChecked():
+            dirs.append('Trash')
+
+        freq_map = {0: 'daily', 1: 'weekly', 2: 'monthly'}
+        freq = freq_map.get(self.frequency_combo.currentIndex(), 'daily')
+
+        config = {
+            'CLEANUP_TIME': self.daily_time_edit.text(),
+            'SHUTDOWN_TIME': self.shutdown_time_edit.text(),
+            'SHUTDOWN_ENABLED': 'yes' if self.shutdown_enable_check.isChecked() else 'no',
+            'NOTIFICATION_MINUTES': str(self.reminder_spin.value()),
+            'CLEANUP_MODE': 'all' if self.mode_all_radio.isChecked() else 'ext_only',
+            'CLEANUP_DIRS': ','.join(dirs),
+            'CLEANUP_FREQUENCY': freq,
+            'CLEANUP_ON_BOOT': 'yes' if self.boot_clean_check.isChecked() else 'no',
+            'CLEANUP_BROWSERS': 'yes',
+            'CLEANUP_SYS_APT': 'yes' if self.apt_check.isChecked() else 'no',
+            'CLEANUP_SYS_JOURNAL': 'yes' if self.journal_check.isChecked() else 'no',
+            'CLEANUP_SYS_THUMBNAILS': 'yes' if self.thumbnails_check.isChecked() else 'no',
+            'CLEANUP_EXTENSIONS': '.tmp,.log,.bak,.cache,.swp,.xlsx,.xls,.doc,.docx,.jpg,.jpeg,.rar,.zip,.ppt,.pdf,.pptx,.png,.txt,.wps,.wpt,.et,.ett,.dps,.dpt,.ofd',
+            'EXCLUDE_EXTENSIONS': '.ico,.desktop',
+            'CLEANUP_INTERVAL': '0'
+        }
+
+        def fetch():
+            return self.client.update_cleanup_config(config)
+
+        def on_result(result):
+            if self._is_destroyed:
+                return
+            if result.get('status') == 'success':
+                QMessageBox.information(self, "成功", "配置已保存")
+                self.config = config
+            else:
+                QMessageBox.warning(self, "失败", result.get('message', '保存失败'))
+
+        thread = WorkerThread(fetch)
+        thread.finished.connect(on_result)
+        thread.finished.connect(lambda: self._threads.remove(thread) if thread in self._threads else None)
+        self._threads.append(thread)
+        thread.start()
+
+    def restore_default(self):
+        self.daily_time_edit.setText('18:00')
+        self.frequency_combo.setCurrentIndex(0)
+        self.patrol_combo.setCurrentIndex(0)
+        self.boot_clean_check.setChecked(False)
+        self.reminder_spin.setValue(5)
+        self.shutdown_enable_check.setChecked(False)
+        self.shutdown_time_edit.setText('20:00')
+        
+        self.desktop_check.setChecked(True)
+        self.download_check.setChecked(True)
+        self.documents_check.setChecked(True)
+        self.pictures_check.setChecked(True)
+        self.videos_check.setChecked(True)
+        self.trash_check.setChecked(True)
+        
+        self.apt_check.setChecked(False)
+        self.journal_check.setChecked(False)
+        self.thumbnails_check.setChecked(False)
+        
+        self.mode_all_radio.setChecked(True)
+        self.auto_start_check.setChecked(False)
+
+        QMessageBox.information(self, "提示", "已恢复默认设置")
+
+    def update_auto_start(self, state):
+        enabled = state == Qt.Checked
+        action = 'enable' if enabled else 'disable'
+        
+        def fetch():
+            return self.client.control_cleanup_service(action)
+
+        def on_result(result):
+            if self._is_destroyed:
+                return
+            if result.get('status') != 'success':
+                self.auto_start_check.setChecked(not enabled)
+
+        thread = WorkerThread(fetch)
+        thread.finished.connect(on_result)
+        thread.finished.connect(lambda: self._threads.remove(thread) if thread in self._threads else None)
+        self._threads.append(thread)
+        thread.start()
+
+    def run_cleanup(self):
+        self.run_cleanup_btn.setEnabled(False)
+        self.log_text.clear()
+        self.log_text.append("正在执行系统清理...")
+
+        def fetch():
+            return self.client.run_cleanup()
+
+        def on_result(result):
+            if self._is_destroyed:
+                return
+            self.run_cleanup_btn.setEnabled(True)
+            if result.get('status') == 'success':
+                self.log_text.append("✅ 清理完成！")
+                log = result.get('data', {}).get('log', '')
+                if log:
+                    self.log_text.append(log)
+                QMessageBox.information(self, "成功", "系统清理完成")
+                self.load_disk_info()
+            else:
+                self.log_text.append(f"❌ 清理失败: {result.get('message', '未知错误')}")
+                QMessageBox.warning(self, "失败", result.get('message', '清理失败'))
+
+        thread = WorkerThread(fetch)
+        thread.finished.connect(on_result)
+        thread.finished.connect(lambda: self._threads.remove(thread) if thread in self._threads else None)
+        self._threads.append(thread)
+        thread.start()
+
+    def load_status(self):
+        def fetch():
+            return self.client.get_cleanup_status()
+
+        def on_result(result):
+            if self._is_destroyed:
+                return
+            if result.get('status') == 'success':
+                data = result.get('data', {})
+                active = data.get('active', False)
+                enabled = data.get('enabled', False)
+                
+                if active:
+                    self.status_value.setText("运行中")
+                    self.status_value.setStyleSheet(f"color: {MAC_GREEN};")
+                else:
+                    self.status_value.setText("已停止")
+                    self.status_value.setStyleSheet(f"color: {MAC_RED};")
+                
+                self.auto_start_check.setChecked(enabled)
+
+        thread = WorkerThread(fetch)
+        thread.finished.connect(on_result)
+        thread.finished.connect(lambda: self._threads.remove(thread) if thread in self._threads else None)
+        self._threads.append(thread)
+        thread.start()
+
+    def load_log(self):
+        self.log_text.clear()
+        self.log_text.append("正在加载日志...")
+
+        def fetch():
+            return self.client.get_cleanup_status()
+
+        def on_result(result):
+            if self._is_destroyed:
+                return
+            if result.get('status') == 'success':
+                logs = result.get('data', {}).get('logs', '')
+                if logs:
+                    self.log_text.setPlainText(logs)
+                else:
+                    self.log_text.setPlainText("暂无日志")
+
+        thread = WorkerThread(fetch)
+        thread.finished.connect(on_result)
+        thread.finished.connect(lambda: self._threads.remove(thread) if thread in self._threads else None)
+        self._threads.append(thread)
+        thread.start()
+
+    def control_service(self, action):
+        def fetch():
+            return self.client.control_cleanup_service(action)
+
+        def on_result(result):
+            if self._is_destroyed:
+                return
+            if result.get('status') == 'success':
+                QMessageBox.information(self, "成功", f"服务已{action}")
+                self.load_status()
+            else:
+                QMessageBox.warning(self, "失败", result.get('message', f"服务{action}失败"))
+
+        thread = WorkerThread(fetch)
+        thread.finished.connect(on_result)
+        thread.finished.connect(lambda: self._threads.remove(thread) if thread in self._threads else None)
+        self._threads.append(thread)
+        thread.start()
+
+    def closeEvent(self, event):
+        self._is_destroyed = True
+        for thread in list(self._threads):
+            if thread.isRunning():
+                thread.wait(5000)
+        event.accept()
+
+
 class TerminalPage(QWidget):
     def __init__(self, client, parent=None):
         super().__init__(parent)
@@ -2403,6 +3322,10 @@ class FeatureToolsPage(QWidget):
         kms_card.clicked.connect(self.open_kms_generator)
         grid_layout.addWidget(kms_card, 1, 1)
 
+        cleanup_card = ToolCard("edit-delete", "系统清理", "清理系统垃圾文件、浏览器缓存、回收站等", "#FF3B30")
+        cleanup_card.clicked.connect(self.open_cleanup)
+        grid_layout.addWidget(cleanup_card, 2, 0)
+
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setStyleSheet("QScrollArea { border: none; }")
@@ -2429,13 +3352,27 @@ class FeatureToolsPage(QWidget):
         dialog = KmsScriptGeneratorDialog(self)
         dialog.exec_()
 
+    def open_cleanup(self):
+        from core.local_client import LocalClient
+        dialog = QDialog(self)
+        dialog.setWindowTitle("系统清理")
+        dialog.setMinimumSize(800, 600)
+        dialog.resize(800, 600)
+        dialog.setStyleSheet(f"background-color: {BACKGROUND_MAIN};")
+        
+        layout = QVBoxLayout(dialog)
+        cleanup_page = CleanupPage(LocalClient())
+        layout.addWidget(cleanup_page)
+        
+        dialog.exec_()
+
 
 class KmsScriptGeneratorDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("KMS脚本生成器")
-        self.setMinimumSize(900, 600)
-        self.resize(900, 600)
+        self.setMinimumSize(800, 600)
+        self.resize(1000, 700)
         self.setStyleSheet(f"background-color: {BACKGROUND_MAIN};")
         
         self.kms_server = "10.0.0.10"
@@ -2458,8 +3395,9 @@ class KmsScriptGeneratorDialog(QDialog):
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(20)
-        left_panel.setFixedWidth(350)
+        left_layout.setSpacing(16)
+        left_panel.setMinimumWidth(320)
+        left_panel.setMaximumWidth(380)
 
         header_widget = QWidget()
         header_layout = QHBoxLayout(header_widget)
@@ -2480,6 +3418,7 @@ class KmsScriptGeneratorDialog(QDialog):
         desc_label = QLabel("可视化定制多功能KMS激活脚本，支持克隆机修复与全版本适配")
         desc_label.setFont(create_font(FONT_SIZE_SMALL))
         desc_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        desc_label.setWordWrap(True)
         left_layout.addWidget(desc_label)
 
         kms_group = QGroupBox("KMS服务器配置")
@@ -2645,13 +3584,28 @@ class KmsScriptGeneratorDialog(QDialog):
 
         self.script_text = QTextEdit()
         self.script_text.setReadOnly(True)
-        self.script_text.setFont(QFont("Consolas", 10))
+        self.script_text.setFont(QFont("Consolas", 11))
+        self.script_text.setLineWrapMode(QTextEdit.NoWrap)
+        self.script_text.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.script_text.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.script_text.setStyleSheet(f"""
             QTextEdit {{
                 background-color: {BACKGROUND_SECONDARY};
                 border-radius: {CORNER_BUTTON}px;
                 padding: 12px;
                 color: {TEXT_PRIMARY};
+                border: 1px solid {DIVIDER};
+            }}
+            QTextEdit QScrollBar {{
+                width: 12px;
+                height: 12px;
+            }}
+            QTextEdit QScrollBar::handle {{
+                background-color: {TEXT_DISABLED};
+                border-radius: 6px;
+            }}
+            QTextEdit QScrollBar::handle:hover {{
+                background-color: {TEXT_SECONDARY};
             }}
         """)
         right_layout.addWidget(self.script_text, stretch=1)
@@ -2680,18 +3634,20 @@ class KmsScriptGeneratorDialog(QDialog):
         
         for label_text, code_text in instructions:
             row_layout = QHBoxLayout()
+            row_layout.setSpacing(8)
             
             label = QLabel(label_text)
             label.setFont(create_font(FONT_SIZE_SMALL))
             label.setStyleSheet(f"color: {TEXT_SECONDARY};")
-            row_layout.addWidget(label)
+            label.setWordWrap(False)
+            row_layout.addWidget(label, stretch=0)
             
             code_label = QLabel(code_text)
             code_label.setFont(QFont("Consolas", 11))
             code_label.setStyleSheet(f"background-color: {BACKGROUND_SECONDARY}; color: #34C759; padding: 2px 6px; border-radius: 4px;")
-            row_layout.addWidget(code_label)
+            code_label.setWordWrap(True)
+            row_layout.addWidget(code_label, stretch=1)
             
-            row_layout.addStretch()
             help_layout.addLayout(row_layout)
         
         right_layout.addWidget(help_group)

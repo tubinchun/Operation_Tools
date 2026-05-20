@@ -10,6 +10,9 @@ import os
 import platform
 import datetime
 import psutil
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.commands import CleanupCommands
 
 logging.basicConfig(
     level=logging.INFO,
@@ -617,6 +620,43 @@ class KylinServerCommands:
         
         return "\n".join(lines)
 
+    @staticmethod
+    def run_cleanup(params):
+        try:
+            return CleanupCommands.run_cleanup()
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
+    @staticmethod
+    def get_cleanup_config(params):
+        try:
+            return CleanupCommands.get_cleanup_config()
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
+    @staticmethod
+    def update_cleanup_config(params):
+        try:
+            config = params.get('config', {})
+            return CleanupCommands.update_cleanup_config(config)
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
+    @staticmethod
+    def get_cleanup_status(params):
+        try:
+            return CleanupCommands.get_cleanup_status()
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
+    @staticmethod
+    def control_cleanup_service(params):
+        try:
+            action = params.get('action', '')
+            return CleanupCommands.control_cleanup_service(action)
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
 
 def main():
     import argparse
@@ -646,6 +686,11 @@ def main():
     server.register_handler('get_system_logs', KylinServerCommands.get_system_logs)
     server.register_handler('get_system_stats', KylinServerCommands.get_system_stats)
     server.register_handler('get_detailed_system_info', KylinServerCommands.get_detailed_system_info)
+    server.register_handler('run_cleanup', KylinServerCommands.run_cleanup)
+    server.register_handler('get_cleanup_config', KylinServerCommands.get_cleanup_config)
+    server.register_handler('update_cleanup_config', KylinServerCommands.update_cleanup_config)
+    server.register_handler('get_cleanup_status', KylinServerCommands.get_cleanup_status)
+    server.register_handler('control_cleanup_service', KylinServerCommands.control_cleanup_service)
 
     print(f"银河麒麟运维管理工具服务端启动中...")
     print(f"监听地址: {args.host}:{args.port}")

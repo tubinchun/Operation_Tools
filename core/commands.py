@@ -1173,3 +1173,341 @@ class SystemCommands:
         lines.append("")
         
         return "\n".join(lines)
+
+
+# ==================== Kylin Cleanup 清理功能集成 ====================
+
+class CleanupCommands:
+    DEFAULT_CONFIG = {
+        'CLEANUP_TIME': '18:00',
+        'NOTIFICATION_MINUTES': '5',
+        'SHUTDOWN_TIME': '20:00',
+        'SHUTDOWN_ENABLED': 'yes',
+        'SHUTDOWN_NOTIFICATION_MINUTES': '10',
+        'CLEANUP_EXTENSIONS': '.tmp,.log,.bak,.cache,.swp,.xlsx,.xls,.doc,.docx,.jpg,.jpeg,.rar,.zip,.ppt,.pdf,.pptx,.png,.txt,.wps,.wpt,.et,.ett,.dps,.dpt,.ofd',
+        'EXCLUDE_EXTENSIONS': '.ico,.desktop',
+        'CLEANUP_MODE': 'all',
+        'CLEANUP_DIRS': 'Desktop,Downloads,Documents,Pictures,Videos,Trash',
+        'CLEANUP_BROWSERS': 'yes',
+        'CLEANUP_SYS_APT': 'no',
+        'CLEANUP_SYS_JOURNAL': 'no',
+        'CLEANUP_SYS_THUMBNAILS': 'no',
+        'CLEANUP_FREQUENCY': 'daily',
+        'CLEANUP_ON_BOOT': 'no',
+        'CLEANUP_INTERVAL': '0'
+    }
+
+    CONFIG_FILE = "/etc/kylin-clean/config.sh"
+
+    @staticmethod
+    def load_config():
+        config = CleanupCommands.DEFAULT_CONFIG.copy()
+        if os.path.exists(CleanupCommands.CONFIG_FILE):
+            try:
+                with open(CleanupCommands.CONFIG_FILE, 'r') as f:
+                    for line in f:
+                        if '=' in line and not line.strip().startswith('#'):
+                            k, v = line.strip().split('=', 1)
+                            config[k.strip()] = v.strip().strip('"')
+            except Exception as e:
+                pass
+        return config
+
+    @staticmethod
+    def save_config(config):
+        config_str = f'''# Kylin / openKylin 清理工具配置文件
+CLEANUP_TIME="{config.get('CLEANUP_TIME', '18:00')}"
+NOTIFICATION_MINUTES="{config.get('NOTIFICATION_MINUTES', '5')}"
+SHUTDOWN_TIME="{config.get('SHUTDOWN_TIME', '20:00')}"
+SHUTDOWN_ENABLED="{config.get('SHUTDOWN_ENABLED', 'yes')}"
+CLEANUP_EXTENSIONS="{config.get('CLEANUP_EXTENSIONS', '.tmp,.log,.bak,.cache,.swp')}"
+EXCLUDE_EXTENSIONS="{config.get('EXCLUDE_EXTENSIONS', '.ico,.desktop')}"
+CLEANUP_MODE="{config.get('CLEANUP_MODE', 'all')}"
+CLEANUP_DIRS="{config.get('CLEANUP_DIRS', 'Desktop,Downloads,Documents,Pictures,Videos,Trash')}"
+CLEANUP_BROWSERS="{config.get('CLEANUP_BROWSERS', 'yes')}"
+CLEANUP_SYS_APT="{config.get('CLEANUP_SYS_APT', 'no')}"
+CLEANUP_SYS_JOURNAL="{config.get('CLEANUP_SYS_JOURNAL', 'no')}"
+CLEANUP_SYS_THUMBNAILS="{config.get('CLEANUP_SYS_THUMBNAILS', 'no')}"
+CLEANUP_FREQUENCY="{config.get('CLEANUP_FREQUENCY', 'daily')}"
+CLEANUP_ON_BOOT="{config.get('CLEANUP_ON_BOOT', 'no')}"
+CLEANUP_INTERVAL="{config.get('CLEANUP_INTERVAL', '0')}"
+'''
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['pkexec', 'tee', CleanupCommands.CONFIG_FILE],
+                input=config_str.encode('utf-8'),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            if result.returncode == 0:
+                return {'status': 'success', 'message': '配置保存成功'}
+            else:
+                return {'status': 'error', 'message': f'保存配置失败: 需要管理员权限'}
+        except Exception as e:
+            return {'status': 'error', 'message': f'保存配置失败: {str(e)}'}
+
+    @staticmethod
+    def get_regular_users():
+        users = set()
+        try:
+            import pwd
+            for p in pwd.getpwall():
+                if 1000 <= p.pw_uid < 65534 and os.path.isdir(p.pw_dir):
+                    users.add(p.pw_name)
+        except:
+            pass
+        
+        if os.path.isdir("/home"):
+            try:
+                for entry in os.listdir("/home"):
+                    if entry not in users and os.path.isdir(os.path.join("/home", entry)):
+                        if not entry.startswith('.'):
+                            users.add(entry)
+            except:
+                pass
+        return list(users) if users else ["kylin", "openkylin"]
+
+    @staticmethod
+    def get_compiled_extension_rules(config):
+        mode = config.get('CLEANUP_MODE', 'all')
+        cleanups = tuple([e.strip().lower() for e in config.get('CLEANUP_EXTENSIONS', '').split(',') if e.strip()])
+        excludes = tuple([e.strip().lower() for e in config.get('EXCLUDE_EXTENSIONS', '').split(',') if e.strip()])
+        return mode, cleanups, excludes
+
+    @staticmethod
+    def should_delete(filename, rules):
+        mode, cleanup_exts, exclude_exts = rules
+        name_lower = filename.lower()
+        
+        if name_lower.endswith(exclude_exts):
+            return False
+            
+        if mode == 'ext_only':
+            return name_lower.endswith(cleanup_exts)
+        else:
+            return True
+
+    @staticmethod
+    def cleanup_directory_safe(path, rules):
+        deleted_count = 0
+        if not os.path.exists(path):
+            return deleted_count
+            
+        try:
+            for root, dirs, files in os.walk(path, topdown=False):
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                
+                for filename in files:
+                    file_path = os.path.join(root, filename)
+                    if os.path.islink(file_path):
+                        continue
+                    
+                    if CleanupCommands.should_delete(filename, rules):
+                        try:
+                            os.remove(file_path)
+                            deleted_count += 1
+                        except:
+                            pass
+                            
+                if root != path:
+                    try:
+                        if not os.listdir(root):
+                            os.rmdir(root)
+                    except:
+                        pass
+        except:
+            pass
+            
+        return deleted_count
+
+    @staticmethod
+    def clear_recycle_bin(username, config):
+        target_dirs = config.get('CLEANUP_DIRS', '').split(',')
+        if 'Trash' not in target_dirs:
+            return 0
+
+        trash_path = f"/home/{username}/.local/share/Trash/"
+        deleted_count = 0
+        if os.path.exists(trash_path):
+            paths = [os.path.join(trash_path, "files"), os.path.join(trash_path, "info")]
+            for p in paths:
+                if os.path.exists(p):
+                    try:
+                        import shutil
+                        for item in os.listdir(p):
+                            item_path = os.path.join(p, item)
+                            if os.path.isdir(item_path):
+                                shutil.rmtree(item_path)
+                                deleted_count += len(os.listdir(item_path)) if os.path.exists(item_path) else 0
+                            else:
+                                os.remove(item_path)
+                                deleted_count += 1
+                    except:
+                        pass
+        return deleted_count
+
+    @staticmethod
+    def clear_browser_caches(username):
+        cache_paths = [
+            f"/home/{username}/.cache/mozilla/firefox",
+            f"/home/{username}/.cache/chromium/Default/Cache",
+            f"/home/{username}/.cache/google-chrome/Default/Cache",
+            f"/home/{username}/.cache/microsoft-edge/Default/Cache",
+            f"/home/{username}/.cache/BraveSoftware/Brave-Browser/Default/Cache",
+            f"/home/{username}/.cache/360se",
+            f"/home/{username}/.cache/qaxbrowser"
+        ]
+        
+        deleted_count = 0
+        for base_path in cache_paths:
+            if os.path.exists(base_path) and os.path.isdir(base_path):
+                try:
+                    import shutil
+                    for item in os.listdir(base_path):
+                        item_path = os.path.join(base_path, item)
+                        if os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                        else:
+                            os.remove(item_path)
+                        deleted_count += 1
+                except:
+                    pass
+                    
+        return deleted_count
+
+    @staticmethod
+    def clear_thumbnails(username):
+        thumb_path = f"/home/{username}/.cache/thumbnails"
+        deleted_count = 0
+        if os.path.exists(thumb_path) and os.path.isdir(thumb_path):
+            try:
+                import shutil
+                for item in os.listdir(thumb_path):
+                    item_path = os.path.join(thumb_path, item)
+                    if os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                    else:
+                        os.remove(item_path)
+                    deleted_count += 1
+            except:
+                pass
+        return deleted_count
+
+    @staticmethod
+    def clear_system_garbage(apt_enabled, journal_enabled):
+        commands = []
+        
+        if apt_enabled:
+            commands.extend([
+                ["apt-get", "clean"],
+                ["apt-get", "autoremove", "-y"]
+            ])
+            
+        if journal_enabled:
+            commands.extend([
+                ["journalctl", "--vacuum-time=7d"],
+                ["journalctl", "--vacuum-size=100M"]
+            ])
+            
+        results = []
+        for cmd in commands:
+            try:
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                results.append(f"执行: {' '.join(cmd)} - 成功")
+            except Exception as e:
+                results.append(f"执行: {' '.join(cmd)} - 失败: {str(e)}")
+        
+        return results
+
+    @staticmethod
+    def run_cleanup(config=None):
+        try:
+            result = subprocess.run(
+                ['pkexec', 'python3', '/opt/kylin-clean/clean_linux.py', '--once'],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            if result.returncode == 0:
+                return {'status': 'success', 'data': {'log': result.stdout}}
+            else:
+                return {'status': 'error', 'message': f'清理失败: {result.stderr}'}
+        except subprocess.TimeoutExpired:
+            return {'status': 'error', 'message': '清理操作超时'}
+        except Exception as e:
+            return {'status': 'error', 'message': f'执行清理失败: {str(e)}'}
+
+    @staticmethod
+    def get_cleanup_config():
+        try:
+            config = CleanupCommands.load_config()
+            return {'status': 'success', 'data': config}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
+    @staticmethod
+    def update_cleanup_config(config_updates):
+        try:
+            config = CleanupCommands.load_config()
+            config.update(config_updates)
+            return CleanupCommands.save_config(config)
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
+    @staticmethod
+    def get_cleanup_status():
+        try:
+            result = subprocess.run(["systemctl", "is-active", "kylin-clean-tools.service"],
+                                   capture_output=True, text=True)
+            active = result.returncode == 0
+            
+            result = subprocess.run(["systemctl", "is-enabled", "kylin-clean-tools.service"],
+                                   capture_output=True, text=True)
+            enabled = result.returncode == 0
+            
+            return {'status': 'success', 'data': {
+                'active': active,
+                'enabled': enabled,
+                'status_text': '运行中' if active else '已停止',
+                'enabled_text': '已启用' if enabled else '已禁用'
+            }}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e), 'data': {
+                'active': False,
+                'enabled': False,
+                'status_text': '未知',
+                'enabled_text': '未知'
+            }}
+
+    @staticmethod
+    def control_cleanup_service(action):
+        try:
+            import shutil
+            elevate_cmd = ["pkexec"]
+            for cmd in ["pkexec", "kysec-polkit", "kdesu", "gksudo", "sudo"]:
+                if shutil.which(cmd):
+                    elevate_cmd = [cmd]
+                    break
+            
+            cmd = elevate_cmd + ["systemctl", action, "kylin-clean-tools.service"]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                action_text = {
+                    'start': '启动',
+                    'stop': '停止',
+                    'restart': '重启',
+                    'enable': '启用',
+                    'disable': '禁用'
+                }
+                return {'status': 'success', 'message': f'服务已{action_text.get(action, action)}'}
+            else:
+                stderr = result.stderr.strip() if result.stderr else ''
+                stdout = result.stdout.strip() if result.stdout else ''
+                error_msg = stderr if stderr else stdout
+                if not error_msg:
+                    error_msg = '操作失败'
+                return {'status': 'error', 'message': error_msg}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}

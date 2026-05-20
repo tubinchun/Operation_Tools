@@ -1,5 +1,5 @@
 Package: kylin-system-tools
-Version: 1.0.0
+Version: 1.0.1
 Architecture: amd64
 Maintainer: Kylin Team <support@kylinos.cn>
 Description: 银河麒麟运维管理工具

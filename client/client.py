@@ -140,3 +140,18 @@ class KylinClient:
 
     def get_system_logs(self, lines=100):
         return self.send_request('get_system_logs', {'lines': lines})
+
+    def run_cleanup(self):
+        return self.send_request('run_cleanup')
+
+    def get_cleanup_config(self):
+        return self.send_request('get_cleanup_config')
+
+    def update_cleanup_config(self, config):
+        return self.send_request('update_cleanup_config', {'config': config})
+
+    def get_cleanup_status(self):
+        return self.send_request('get_cleanup_status')
+
+    def control_cleanup_service(self, action):
+        return self.send_request('control_cleanup_service', {'action': action})

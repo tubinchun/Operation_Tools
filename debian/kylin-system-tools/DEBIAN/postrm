@@ -3,8 +3,10 @@
 
 case "$1" in
     remove|purge)
-        # 移除服务
+        # 停止并禁用 kylin-clean-tools 服务
         if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop kylin-clean-tools.service 2>/dev/null || true
+            systemctl disable kylin-clean-tools.service 2>/dev/null || true
             systemctl daemon-reload 2>/dev/null || true
         fi
 
@@ -12,6 +14,7 @@ case "$1" in
         if [ "$1" = "purge" ]; then
             rm -rf /etc/kylin-system-tools 2>/dev/null || true
             rm -rf /var/log/kylin-system-tools 2>/dev/null || true
+            rm -rf /opt/kylin-clean 2>/dev/null || true
         fi
         ;;
     upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
