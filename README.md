@@ -46,6 +46,16 @@
 - 危险命令过滤保护（rm -rf, mkfs, dd if= 等）
 - 命令超时控制（30秒）
 
+### 🧹 系统清理
+
+**CleanupPage** - 系统清理工具
+- 清理服务状态监控与控制
+- 磁盘容量显示与进度条
+- 定时任务设置（清理时间、频率、巡检设置）
+- 清理目录选择（浏览器缓存、系统垃圾等）
+- 快捷操作（服务启停、立即清理、日志查看）
+- 清理模式选择与扩展配置
+
 ### 🎯 特色工具
 
 **FeatureToolsPage** - 实用工具集合
@@ -81,7 +91,7 @@ Operation_Tools/
 │   ├── kylin_desktop_system_info.sh  # 系统信息收集脚本
 │   └── fix_printer.sh       # 打印机修复脚本
 ├── ui/                      # 用户界面模块
-│   ├── main_window.py       # 主窗口（整合版，包含11个页面/对话框）
+│   ├── main_window.py       # 主窗口（整合版，包含12个页面/对话框）
 │   └── macos_styles.py      # macOS风格样式定义
 ├── server/                  # 服务端模块（保留兼容）
 │   ├── server.py            # 服务端实现
@@ -93,6 +103,7 @@ Operation_Tools/
 │   └── apple_ui.py          # macOS风格GUI
 ├── debian/                  # DEB打包配置
 │   └── kylin-system-tools/  # 打包目录结构
+├── kylin-cleanup_1.3.9.3_all/  # 系统清理工具集成包
 ├── kylintools.py            # 整合版主入口
 ├── build-deb.sh             # 构建脚本（支持amd64/arm64/all）
 └── setup.py                 # Python包配置
@@ -141,6 +152,16 @@ Operation_Tools/
 | `get_gpu_info()` | 获取显卡信息 |
 | `get_detailed_system_info()` | 获取详细系统信息 |
 
+### 系统清理
+| 函数名 | 功能 |
+|-------|------|
+| `get_cleanup_status()` | 获取清理服务状态 |
+| `get_cleanup_config()` | 获取清理配置 |
+| `save_cleanup_config(config)` | 保存清理配置 |
+| `run_cleanup()` | 执行立即清理 |
+| `start_cleanup_service()` | 启动清理服务 |
+| `stop_cleanup_service()` | 停止清理服务 |
+
 ---
 
 ## 📦 安装方式
@@ -149,10 +170,10 @@ Operation_Tools/
 
 ```bash
 # 下载最新版本
-wget https://github.com/tubinchun/Operation_Tools/releases/download/v1.0.0/kylin-system-tools_1.0.0_amd64.deb
+wget https://github.com/tubinchun/Operation_Tools/releases/download/v1.1/kylin-system-tools_1.1_amd64.deb
 
 # 安装
-sudo dpkg -i kylin-system-tools_1.0.0_amd64.deb
+sudo dpkg -i kylin-system-tools_1.1_amd64.deb
 sudo apt-get install -f
 ```
 
@@ -170,7 +191,7 @@ sudo apt-get install python3-pyqt5 python3-psutil
 bash build-deb.sh amd64
 
 # 安装
-sudo dpkg -i output/kylin-system-tools_1.0.0_amd64.deb
+sudo dpkg -i output/kylin-system-tools_1.1_amd64.deb
 ```
 
 ---
@@ -189,7 +210,7 @@ kylintools
 ### 界面布局
 
 应用采用 macOS 风格设计：
-- **左侧导航栏**：系统监视器、百宝箱（特色工具）
+- **左侧导航栏**：系统监视器、百宝箱（特色工具）、系统清理
 - **右侧主内容区**：功能页面展示
 - **顶部菜单栏**：文件、工具、帮助
 
@@ -254,4 +275,4 @@ python kylintools.py
 
 **项目地址**: https://github.com/tubinchun/Operation_Tools  
 **适用平台**: 银河麒麟桌面操作系统 V10 SP1  
-**版本**: v1.0.0
+**版本**: v1.1
