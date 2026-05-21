@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-银河麒麟运维管理工具 - 整合版主入口
+麒麟运维百宝箱 - 整合版主入口
 """
 
 import sys

@@ -55,24 +55,24 @@ DEFAULT_CONFIG = {
 
 
 class KylinCleanupSettings:
-    def __init__(self, root):
-        self.root = root
+    def __init__(self, rroot):
+        self.rroot = rroot
         
         # 激活验证拦截
         if license_manager and not license_manager.check_active():
-            self.root.withdraw()
+            self.rroot.withdraw()
             if not self.show_activation_dialog():
                 sys.exit(0)
-            self.root.deiconify()
+            self.rroot.deiconify()
             
-        self.root.title("麒麟清理工具设置")
-        self.root.geometry("540x680")
-        self.root.minsize(480, 520)
+        self.rroot.title("麒麟清理工具设置")
+        self.rroot.geometry("540x680")
+        self.rroot.minsize(480, 520)
         
         # 现代扁平化配色方案
         self.colors = {
             'primary': '#3498db',   # 清理/主色
-            'success': '#2ecc71',   # 保存/启动
+            'success': '#2ecc71',   # 保直/启动
             'danger': '#e74c3c',    # 停止
             'warning': '#f39c12',   # 重启
             'secondary': '#95a5a6', # 默认/重置
@@ -82,7 +82,7 @@ class KylinCleanupSettings:
             'text_secondary': '#7f8c8d'
         }
         
-        self.root.configure(bg=self.colors['bg'])
+        self.rroot.configure(bg=self.colors['bg'])
         
         # 变量初始化
         self.init_variables()
@@ -99,7 +99,7 @@ class KylinCleanupSettings:
         
     def show_activation_dialog(self):
         """显示激活验证窗口"""
-        dialog = tk.Toplevel(self.root)
+        dialog = tk.Toplevel(self.rroot)
         dialog.title("麒麟清理工具 - 软件激活")
         dialog.geometry("540x620")
         dialog.resizable(False, False)
@@ -187,7 +187,7 @@ class KylinCleanupSettings:
                     activation_success[0] = True
                     dialog.destroy()
                 else:
-                    messagebox.showerror("权限错误", "激活码正确，但写入授权文件失败。\n请确保以 root 权限运行本设置。", parent=dialog)
+                    messagebox.showerror("权限错误", "激活码正确，但写入授权文件失败。\n请确保以 rroot 权限运行本设置。", parent=dialog)
             else:
                 messagebox.showwarning("激活失败", "激活码无效或与本机特征不匹配，请检查后重试。", parent=dialog)
                 
@@ -201,7 +201,7 @@ class KylinCleanupSettings:
                   bg="#f7f9fc", fg="#a0aec0", font=("微软雅黑", 10), 
                   relief="flat", cursor="hand2", activebackground="#f7f9fc").pack(pady=15)
         
-        self.root.wait_window(dialog)
+        self.rroot.wait_window(dialog)
         return activation_success[0]
     
     def init_variables(self):
@@ -209,7 +209,7 @@ class KylinCleanupSettings:
         self.service_enabled = tk.BooleanVar(value=False)
         self.shutdown_enabled = tk.BooleanVar(value=True)
         self.cleanup_mode = tk.StringVar(value='all')
-        self.boot_enabled = tk.BooleanVar(value=False)
+        self.broot_enabled = tk.BooleanVar(value=False)
         self.freq_var = tk.StringVar(value='daily')
         self.interval_var = tk.StringVar(value='0')
         
@@ -229,11 +229,11 @@ class KylinCleanupSettings:
     
     def center_window(self):
         """窗口居中"""
-        self.root.update_idletasks()
-        w, h = self.root.winfo_width(), self.root.winfo_height()
-        x = (self.root.winfo_screenwidth() - w) // 2
-        y = (self.root.winfo_screenheight() - h) // 2
-        self.root.geometry(f'{w}x{h}+{x}+{y}')
+        self.rroot.update_idletasks()
+        w, h = self.rroot.winfo_width(), self.rroot.winfo_height()
+        x = (self.rroot.winfo_screenwidth() - w) // 2
+        y = (self.rroot.winfo_screenheight() - h) // 2
+        self.rroot.geometry(f'{w}x{h}+{x}+{y}')
     
     def create_ui(self):
         """创建主界面"""
@@ -241,7 +241,7 @@ class KylinCleanupSettings:
         self.create_status_bar()
         
         # 标签页
-        self.notebook = ttk.Notebook(self.root)
+        self.notebook = ttk.Notebook(self.rroot)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 10))
         
         # 创建各种标签页
@@ -279,7 +279,7 @@ class KylinCleanupSettings:
     
     def create_status_bar(self):
         """创建状态栏"""
-        bar = tk.Frame(self.root, bg=self.colors['card'], height=40)
+        bar = tk.Frame(self.rroot, bg=self.colors['card'], height=40)
         bar.pack(fill=tk.X, padx=10, pady=(10, 5))
         bar.pack_propagate(False)
         
@@ -343,10 +343,10 @@ class KylinCleanupSettings:
         self.interval_combo.pack(side=tk.LEFT, padx=(10, 0))
         
         # 开机立即运行
-        row_boot = ttk.Frame(group1)
-        row_boot.pack(fill=tk.X, pady=2)
-        ttk.Checkbutton(row_boot, text="每次开机时自动执行一次后台系统清理", 
-                        variable=self.boot_enabled).pack(side=tk.LEFT, padx=0)
+        row_broot = ttk.Frame(group1)
+        row_broot.pack(fill=tk.X, pady=2)
+        ttk.Checkbutton(row_broot, text="每次开机时自动执行一次后台系统清理", 
+                        variable=self.broot_enabled).pack(side=tk.LEFT, padx=0)
         
         row2 = ttk.Frame(group1)
         row2.pack(fill=tk.X, pady=2)
@@ -442,16 +442,16 @@ class KylinCleanupSettings:
                 row=i//3, column=i%3, sticky=tk.W, padx=10, pady=2)
                 
         # 浏览器清理独立选项        
-        ttk.Checkbutton(group1, text="深度清理常用浏览器缓存 (Firefox, Chrome, Edge, 360等)", 
+        ttk.Checkbutton(group1, text="深度清理常用浏览器缓直 (Firefox, Chrome, Edge, 360等)", 
                         variable=self.dirs['Browsers']).pack(anchor=tk.W, padx=10, pady=(5,0))
                         
         # 系统级垃圾清理精细化选项
         sys_group = ttk.LabelFrame(group1, text="高级系统清理")
         sys_group.pack(fill=tk.X, padx=10, pady=(10, 5))
         
-        ttk.Checkbutton(sys_group, text="清理陈旧的 APT 安装包缓存", variable=self.dirs['SysApt']).pack(anchor=tk.W, padx=5, pady=2)
+        ttk.Checkbutton(sys_group, text="清理陈旧的 APT 安装包缓直", variable=self.dirs['SysApt']).pack(anchor=tk.W, padx=5, pady=2)
         ttk.Checkbutton(sys_group, text="清理 Systemd 历史运行日志 (保留最近7天)", variable=self.dirs['SysJournal']).pack(anchor=tk.W, padx=5, pady=2)
-        ttk.Checkbutton(sys_group, text="清理陈旧的图片与视频缩略图缓存", variable=self.dirs['SysThumbnails']).pack(anchor=tk.W, padx=5, pady=2)
+        ttk.Checkbutton(sys_group, text="清理陈旧的图片与视频缩略图缓直", variable=self.dirs['SysThumbnails']).pack(anchor=tk.W, padx=5, pady=2)
         
         # 清理模式
         group2 = ttk.LabelFrame(tab, text="清理模式", padding=10)
@@ -505,7 +505,7 @@ class KylinCleanupSettings:
         self._create_flat_button(group2, "🗑 立即执行清理", self.colors['primary'], 
                                    self.run_cleanup_now, font=("微软雅黑", 10, "bold")).pack(fill=tk.X, pady=2)
         
-        ttk.Label(group2, text="将根据当前保存的设置执行清理",
+        ttk.Label(group2, text="将根据当前保直的设置执行清理",
                   foreground=self.colors['text_secondary']).pack(anchor=tk.W, pady=(2, 0))
         
         # 日志查看
@@ -517,10 +517,10 @@ class KylinCleanupSettings:
     
     def create_bottom_buttons(self):
         """底部按钮"""
-        bottom = tk.Frame(self.root, bg=self.colors['bg'])
+        bottom = tk.Frame(self.rroot, bg=self.colors['bg'])
         bottom.pack(fill=tk.X, padx=10, pady=(0, 10))
         
-        self._create_flat_button(bottom, "💾 保存设置", self.colors['success'], 
+        self._create_flat_button(bottom, "💾 保直设置", self.colors['success'], 
                                    self.save_config, width=12, font=("微软雅黑", 10, "bold")).pack(side=tk.RIGHT)
         
         self._create_flat_button(bottom, "↩ 恢复默认", self.colors['secondary'], 
@@ -559,9 +559,9 @@ class KylinCleanupSettings:
                                         capture_output=True, text=True)
                 enabled = result.returncode == 0
                 
-                self.root.after(0, lambda: self._update_status_ui(active, enabled))
+                self.rroot.after(0, lambda: self._update_status_ui(active, enabled))
             except:
-                self.root.after(0, lambda: self.status_label.config(text="未知", fg="gray"))
+                self.rroot.after(0, lambda: self.status_label.config(text="未知", fg="gray"))
         
         threading.Thread(target=check, daemon=True).start()
     
@@ -626,7 +626,7 @@ class KylinCleanupSettings:
                     freq_map = {'daily': 0, 'weekly': 1, 'monthly': 2}
                     self.freq_combo.current(freq_map.get(val.lower(), 0))
                 elif key == 'CLEANUP_ON_BOOT':
-                    self.boot_enabled.set(val.lower() == 'yes')
+                    self.broot_enabled.set(val.lower() == 'yes')
                 elif key == 'CLEANUP_INTERVAL':
                     interval_map = {'0': 0, '2': 1, '4': 2, '8': 3, '12': 4}
                     self.interval_combo.current(interval_map.get(val, 0))
@@ -636,7 +636,7 @@ class KylinCleanupSettings:
         self.toggle_shutdown()
     
     def save_config(self):
-        """保存配置"""
+        """保直配置"""
         cleanup_time = f"{self.cleanup_hour.get()}:{self.cleanup_minute.get()}"
         shutdown_time = f"{self.shutdown_hour.get()}:{self.shutdown_minute.get()}"
         
@@ -646,7 +646,7 @@ class KylinCleanupSettings:
         sys_jour = 'yes' if self.dirs['SysJournal'].get() else 'no'
         sys_thumb = 'yes' if self.dirs['SysThumbnails'].get() else 'no'
         
-        boot_run = 'yes' if self.boot_enabled.get() else 'no'
+        broot_run = 'yes' if self.broot_enabled.get() else 'no'
         freq_list = ['daily', 'weekly', 'monthly']
         freq = freq_list[self.freq_combo.current()]
         
@@ -667,7 +667,7 @@ CLEANUP_SYS_APT="{sys_apt}"
 CLEANUP_SYS_JOURNAL="{sys_jour}"
 CLEANUP_SYS_THUMBNAILS="{sys_thumb}"
 CLEANUP_FREQUENCY="{freq}"
-CLEANUP_ON_BOOT="{boot_run}"
+CLEANUP_ON_BOOT="{broot_run}"
 CLEANUP_INTERVAL="{interval}"
 '''
         try:
@@ -675,7 +675,7 @@ CLEANUP_INTERVAL="{interval}"
             try:
                 with open(CONFIG_FILE, 'w') as f:
                     f.write(config)
-                messagebox.showinfo("成功", "设置已保存！")
+                messagebox.showinfo("成功", "设置已保直！")
                 return
             except PermissionError:
                 # 2. 如果直接写入失败，再调用提权命令（弹出密码框）
@@ -683,11 +683,11 @@ CLEANUP_INTERVAL="{interval}"
                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 p.communicate(input=config.encode())
                 if p.returncode == 0:
-                    messagebox.showinfo("成功", "设置已保存！")
+                    messagebox.showinfo("成功", "设置已保直！")
                 else:
                     messagebox.showerror("失败", "无法写入配置文件，请检查权限")
         except Exception as e:
-            messagebox.showerror("错误", f"保存失败: {e}")
+            messagebox.showerror("错误", f"保直失败: {e}")
     
     def reset_to_default(self):
         """恢复默认"""
@@ -711,9 +711,9 @@ CLEANUP_INTERVAL="{interval}"
             self.dirs['SysThumbnails'].set(DEFAULT_CONFIG.get('cleanup_sys_thumbnails', 'no') == 'yes')
             self.freq_combo.current(0)
             self.interval_combo.current(0)
-            self.boot_enabled.set(False)
+            self.broot_enabled.set(False)
             self.toggle_shutdown()
-            messagebox.showinfo("提示", "已恢复默认，请点击保存生效")
+            messagebox.showinfo("提示", "已恢复默认，请点击保直生效")
     
     def start_service(self):
         """启动服务"""
@@ -753,10 +753,10 @@ CLEANUP_INTERVAL="{interval}"
     
     def show_logs(self):
         """显示日志"""
-        win = tk.Toplevel(self.root)
+        win = tk.Toplevel(self.rroot)
         win.title("运行日志")
         win.geometry("600x400")
-        win.transient(self.root)
+        win.transient(self.rroot)
         
         text = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=("Consolas", 9))
         text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -781,13 +781,13 @@ CLEANUP_INTERVAL="{interval}"
 
 
 def main():
-    root = tk.Tk()
+    rroot = tk.Tk()
     try:
-        root.iconphoto(True, tk.PhotoImage(file="/opt/kylin-clean/icon.png"))
+        rroot.iconphoto(True, tk.PhotoImage(file="/opt/kylin-clean/icon.png"))
     except:
         pass
-    KylinCleanupSettings(root)
-    root.mainloop()
+    KylinCleanupSettings(rroot)
+    rroot.mainloop()
 
 
 if __name__ == "__main__":

@@ -17,35 +17,6 @@
 - 进程管理（当前用户进程、全部进程列表）
 - 进程结束功能（单个进程/全部同名进程）
 
-### 👥 用户管理
-
-**UserManagementPage** - 用户信息管理
-- 用户列表展示
-- 用户详情查看（用户名、UID、GID、家目录、Shell、用户类型、密码状态、所属组）
-- 登录历史记录查询（支持按用户筛选）
-- 密码重置功能（需管理员权限）
-
-### 🌐 网络管理
-
-**NetworkPage** - 网络配置管理
-- 网络接口信息展示
-- 网络服务重启功能
-
-### 📦 软件管理
-
-**SoftwarePage** - 软件包管理
-- APT源配置查看与编辑
-- 已安装软件包列表查看
-- 软件包列表导出功能
-
-### 💻 命令终端
-
-**TerminalPage** - 系统命令执行
-- 命令输入与执行
-- 输出结果实时显示
-- 危险命令过滤保护（rm -rf, mkfs, dd if= 等）
-- 命令超时控制（30秒）
-
 ### 🧹 系统清理
 
 **CleanupPage** - 系统清理工具
@@ -58,7 +29,7 @@
 
 ### 🎯 特色工具
 
-**FeatureToolsPage** - 实用工具集合
+**百宝箱** - 实用工具集合
 
 | 工具名称 | 功能描述 | 对应Dialog |
 |---------|---------|-----------|
@@ -66,6 +37,12 @@
 | **系统信息查看** | 硬件信息、软件信息、存储信息、网络信息的详细展示 | SystemInfoDialog |
 | **打印机服务修复** | 恢复CUPS默认配置并重启打印服务 | PrinterRepairDialog |
 | **KMS脚本生成器** | 可视化定制KMS激活脚本，支持克隆机修复、授权文件部署、网络诊断等功能 | KmsScriptGeneratorDialog |
+
+### 🔐 统一授权服务
+
+- **单次授权复用**：用户一次完整授权后，授权状态在所有功能间共享
+- **Polkit集成**：使用 pkexec 实现安全的图形化授权对话框
+- **会话级缓存**：授权状态在整个应用会话期间有效
 
 ---
 
@@ -86,12 +63,14 @@
 ```
 Operation_Tools/
 ├── core/                    # 核心业务逻辑模块
+│   ├── __init__.py          # 模块导出定义
 │   ├── commands.py          # 系统命令实现（25+核心功能）
+│   ├── auth_service.py      # 统一授权服务（单例模式）
 │   ├── local_client.py      # 本地客户端代理
 │   ├── kylin_desktop_system_info.sh  # 系统信息收集脚本
 │   └── fix_printer.sh       # 打印机修复脚本
 ├── ui/                      # 用户界面模块
-│   ├── main_window.py       # 主窗口（整合版，包含12个页面/对话框）
+│   ├── main_window.py       # 主窗口（整合版，包含系统监控、百宝箱、系统清理）
 │   └── macos_styles.py      # macOS风格样式定义
 ├── server/                  # 服务端模块（保留兼容）
 │   ├── server.py            # 服务端实现
@@ -101,6 +80,8 @@ Operation_Tools/
 │   ├── gui.py               # 基础GUI
 │   ├── enhanced_gui.py      # 增强版GUI
 │   └── apple_ui.py          # macOS风格GUI
+├── tools/                   # 工具模块
+│   └── usb_fix_tool/        # USB修复工具
 ├── debian/                  # DEB打包配置
 │   └── kylin-system-tools/  # 打包目录结构
 ├── kylin-cleanup_1.3.9.3_all/  # 系统清理工具集成包
@@ -130,14 +111,6 @@ Operation_Tools/
 | `kill_process(pid)` | 结束指定进程 |
 | `kill_process_by_name(name)` | 结束所有同名进程 |
 
-### 用户管理
-| 函数名 | 功能 |
-|-------|------|
-| `get_users()` | 获取用户列表 |
-| `get_user_info(username)` | 获取用户详情 |
-| `get_login_history(username)` | 获取登录历史 |
-| `reset_user_password(username, password)` | 重置用户密码 |
-
 ### 服务管理
 | 函数名 | 功能 |
 |-------|------|
@@ -162,6 +135,11 @@ Operation_Tools/
 | `start_cleanup_service()` | 启动清理服务 |
 | `stop_cleanup_service()` | 停止清理服务 |
 
+### 授权服务
+| 函数名 | 功能 |
+|-------|------|
+| `run_cmd_with_auth(cmd, input)` | 通过授权服务执行命令 |
+
 ---
 
 ## 📦 安装方式
@@ -170,10 +148,10 @@ Operation_Tools/
 
 ```bash
 # 下载最新版本
-wget https://github.com/tubinchun/Operation_Tools/releases/download/v1.1/kylin-system-tools_1.1_amd64.deb
+wget https://github.com/tubinchun/Operation_Tools/releases/download/v1.0.2/kylin-system-tools_1.0.2_amd64.deb
 
 # 安装
-sudo dpkg -i kylin-system-tools_1.1_amd64.deb
+sudo dpkg -i kylin-system-tools_1.0.2_amd64.deb
 sudo apt-get install -f
 ```
 
@@ -191,7 +169,7 @@ sudo apt-get install python3-pyqt5 python3-psutil
 bash build-deb.sh amd64
 
 # 安装
-sudo dpkg -i output/kylin-system-tools_1.1_amd64.deb
+sudo dpkg -i output/kylin-system-tools_1.0.2_amd64.deb
 ```
 
 ---
@@ -213,6 +191,13 @@ kylintools
 - **左侧导航栏**：系统监视器、百宝箱（特色工具）、系统清理
 - **右侧主内容区**：功能页面展示
 - **顶部菜单栏**：文件、工具、帮助
+
+### 授权机制
+
+首次使用需要管理员权限的功能时：
+1. 系统弹出图形化授权对话框
+2. 输入管理员密码完成授权
+3. 授权状态在整个会话期间复用
 
 ---
 
@@ -253,9 +238,10 @@ python kylintools.py
 |-----|-----|
 | ✅ 危险命令过滤 | rm -rf, mkfs, dd if= 等危险命令 |
 | ✅ 命令超时控制 | 默认30秒超时 |
-| ✅ 管理员权限 | 敏感操作使用 pkexec 获取root权限 |
+| ✅ 统一授权服务 | 使用 pkexec 获取root权限，单次授权复用 |
 | ✅ 线程安全 | 防止UI组件访问已销毁对象 |
 | ✅ Qt高DPI缩放 | 支持高分辨率显示 |
+| ✅ Unix Socket通信 | 授权服务使用本地socket进行安全通信 |
 
 ---
 
@@ -275,4 +261,4 @@ python kylintools.py
 
 **项目地址**: https://github.com/tubinchun/Operation_Tools  
 **适用平台**: 银河麒麟桌面操作系统 V10 SP1  
-**版本**: v1.1
+**版本**: v1.0.2

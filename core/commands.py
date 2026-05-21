@@ -9,6 +9,13 @@ import psutil
 import re
 from collections import defaultdict
 
+try:
+    from .auth_service import AuthService
+except ImportError:
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from auth_service import AuthService
+
 
 def run_cmd(cmd, shell=True):
     try:
@@ -19,6 +26,21 @@ def run_cmd(cmd, shell=True):
         return result.stdout.strip(), result.returncode == 0
     except subprocess.TimeoutExpired:
         return "Command timeout", False
+    except Exception as e:
+        return str(e), False
+
+
+def run_cmd_with_auth(cmd_list, input_data=None):
+    """通过授权服务执行需要管理员权限的命令"""
+    try:
+        auth_service = AuthService()
+        result = auth_service.execute(cmd_list, input_data)
+        
+        if result.get('success'):
+            return result.get('stdout', ''), True
+        else:
+            error_msg = result.get('error', result.get('stderr', 'Unknown error'))
+            return error_msg, False
     except Exception as e:
         return str(e), False
 
@@ -59,7 +81,9 @@ class SystemCommands:
         try:
             cpu_count = psutil.cpu_count(logical=False)
             cpu_count_logical = psutil.cpu_count(logical=True)
+            
             cpu_percent = psutil.cpu_percent(interval=0.1)
+            
             cpu_freq = psutil.cpu_freq()
             cpu_stats = psutil.cpu_stats()
 
@@ -216,7 +240,7 @@ class SystemCommands:
         try:
             processes = []
             
-            for proc in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info', 'uids']):
+            for proc in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_percent', 'memory_info', 'uids']):
                 try:
                     pinfo = proc.info
                     proc_username = pinfo.get('username')
@@ -236,6 +260,7 @@ class SystemCommands:
                             'name': pinfo['name'],
                             'username': proc_username,
                             'cpu_percent': pinfo['cpu_percent'],
+                            'memory_percent': pinfo['memory_percent'],
                             'memory_rss_mb': round(pinfo['memory_info'].rss / (1024**2), 2) if pinfo.get('memory_info') else 0,
                         })
                 except Exception as e:
@@ -267,9 +292,9 @@ class SystemCommands:
                 except Exception as e:
                     return {'status': 'error', 'message': f'强制结束进程失败: {str(e)}'}
             except psutil.AccessDenied:
-                output, success = run_cmd(f'sudo kill -9 {pid}')
+                output, success = run_cmd_with_auth(['kill', '-9', str(pid)])
                 if success:
-                    return {'status': 'success', 'message': f'进程 {proc_name} (PID: {pid}) 已使用 sudo 结束'}
+                    return {'status': 'success', 'message': f'进程 {proc_name} (PID: {pid}) 已成功结束'}
                 return {'status': 'error', 'message': f'权限不足: {output}'}
             except Exception as e:
                 return {'status': 'error', 'message': f'结束进程失败: {str(e)}'}
@@ -281,13 +306,13 @@ class SystemCommands:
     @staticmethod
     def kill_process_by_name(name):
         try:
-            output, success = run_cmd(f'killall {name}')
+            output, success = run_cmd(['killall', name])
             if success:
                 return {'status': 'success', 'message': f'成功结束所有名为 {name} 的进程'}
             else:
-                output, success = run_cmd(f'sudo killall {name}')
+                output, success = run_cmd_with_auth(['killall', name])
                 if success:
-                    return {'status': 'success', 'message': f'使用 sudo 成功结束所有名为 {name} 的进程'}
+                    return {'status': 'success', 'message': f'成功结束所有名为 {name} 的进程'}
                 return {'status': 'error', 'message': f'结束进程失败: {output}'}
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
@@ -429,12 +454,17 @@ class SystemCommands:
     @staticmethod
     def reset_user_password(username, new_password):
         try:
-            cmd = f"echo '{username}:{new_password}' | sudo chpasswd"
-            output, success = run_cmd(cmd)
-            if success:
+            cmd = ['pkexec', 'chpasswd']
+            import subprocess
+            result = subprocess.run(
+                cmd,
+                input=f'{username}:{new_password}',
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
                 return {'status': 'success', 'message': f"用户 {username} 的密码已成功重置"}
-            else:
-                return {'status': 'error', 'message': f"密码重置失败: {output}"}
+            return {'status': 'error', 'message': f"密码重置失败: {result.stderr}"}
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
 
@@ -1065,20 +1095,13 @@ class SystemCommands:
 
     @staticmethod
     def _fix_printer_command():
-        import subprocess
+        output, success = run_cmd_with_auth(['cp', '/usr/share/cups/cupsd.conf.default', '/etc/cups/cupsd.conf'])
+        if not success:
+            return {'status': 'error', 'message': f'恢复CUPS默认配置失败: {output}'}
         
-        def run_cmd(cmd, shell=True):
-            try:
-                result = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=30)
-                return result.returncode == 0
-            except Exception:
-                return False
-        
-        if not run_cmd('pkexec cp /usr/share/cups/cupsd.conf.default /etc/cups/cupsd.conf'):
-            return {'status': 'error', 'message': '恢复CUPS默认配置失败'}
-        
-        if not run_cmd('pkexec systemctl restart cups'):
-            return {'status': 'error', 'message': '重启CUPS服务失败'}
+        output, success = run_cmd_with_auth(['systemctl', 'restart', 'cups'])
+        if not success:
+            return {'status': 'error', 'message': f'重启CUPS服务失败: {output}'}
         
         return {'status': 'success', 'message': '打印机修复成功'}
 
@@ -1233,17 +1256,16 @@ CLEANUP_ON_BOOT="{config.get('CLEANUP_ON_BOOT', 'no')}"
 CLEANUP_INTERVAL="{config.get('CLEANUP_INTERVAL', '0')}"
 '''
         try:
-            import subprocess
-            result = subprocess.run(
-                ['pkexec', 'tee', CleanupCommands.CONFIG_FILE],
-                input=config_str.encode('utf-8'),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            if result.returncode == 0:
+            auth_service = AuthService()
+            
+            cmd = ['tee', CleanupCommands.CONFIG_FILE]
+            result = auth_service.execute(cmd, config_str)
+            
+            if result.get('success'):
                 return {'status': 'success', 'message': '配置保存成功'}
             else:
-                return {'status': 'error', 'message': f'保存配置失败: 需要管理员权限'}
+                error_msg = result.get('error', result.get('stderr', 'Unknown error'))
+                return {'status': 'error', 'message': f'保存配置失败: {error_msg}'}
         except Exception as e:
             return {'status': 'error', 'message': f'保存配置失败: {str(e)}'}
 

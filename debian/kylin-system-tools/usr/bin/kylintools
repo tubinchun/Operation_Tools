@@ -1,5 +1,5 @@
 #!/bin/bash
-# kylintools - 银河麒麟运维管理工具启动脚本
+# kylintools - 麒麟运维百宝箱启动脚本
 
 export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 export PYTHONPATH="/usr/share/kylin-system-tools:/usr/lib/python3/dist-packages:$PYTHONPATH"

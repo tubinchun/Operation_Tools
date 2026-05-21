@@ -13,7 +13,7 @@ from client.client import KylinClient
 
 
 def main():
-    parser = argparse.ArgumentParser(description='银河麒麟运维管理工具 - 客户端')
+    parser = argparse.ArgumentParser(description='麒麟运维百宝箱 - 客户端')
     parser.add_argument('--host', default='localhost', help='服务器地址 (默认: localhost)')
     parser.add_argument('--port', type=int, default=29876, help='服务器端口 (默认: 29876)')
     args = parser.parse_args()

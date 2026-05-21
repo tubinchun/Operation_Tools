@@ -578,7 +578,7 @@ class MainWindow(QMainWindow):
     def __init__(self, client):
         super().__init__()
         self.client = client
-        self.setWindowTitle("银河麒麟运维管理工具")
+        self.setWindowTitle("麒麟运维百宝箱")
         self.setGeometry(100, 100, 1200, 800)
         self.init_ui()
 

@@ -1,6 +1,0 @@
-#!/bin/bash
-# 停止并禁用服务
-systemctl stop kylin-clean-tools.service 2>/dev/null || true
-systemctl disable kylin-clean-tools.service 2>/dev/null || true
-echo "正在卸载 Kylin / openKylin 清理工具..."
-exit 0

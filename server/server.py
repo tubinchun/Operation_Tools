@@ -22,7 +22,7 @@ logger = logging.getLogger('KylinServer')
 
 
 class KylinServerProtocol:
-    VERSION = "1.0.0"
+    VERSION = "1.0.2"
     HEADER_SIZE = 8
 
     @staticmethod
@@ -174,7 +174,9 @@ class KylinServerCommands:
         try:
             cpu_count = psutil.cpu_count(logical=False)
             cpu_count_logical = psutil.cpu_count(logical=True)
-            cpu_percent = psutil.cpu_percent(interval=1)
+            
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            
             cpu_freq = psutil.cpu_freq()
             cpu_stats = psutil.cpu_stats()
 
@@ -692,7 +694,7 @@ def main():
     server.register_handler('get_cleanup_status', KylinServerCommands.get_cleanup_status)
     server.register_handler('control_cleanup_service', KylinServerCommands.control_cleanup_service)
 
-    print(f"银河麒麟运维管理工具服务端启动中...")
+    print(f"麒麟运维百宝箱服务端启动中...")
     print(f"监听地址: {args.host}:{args.port}")
 
     try:

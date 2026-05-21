@@ -291,11 +291,11 @@ class AboutDialog(QDialog):
         icon_label.setText("🛠️")
         icon_label.setStyleSheet("font-size: 40px; background: transparent;")
 
-        title = QLabel("银河麒麟运维管理工具")
+        title = QLabel("麒麟运维百宝箱")
         title.setFont(QFont("-apple-system, BlinkMacSystemFont, Segoe UI", 20, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
 
-        version = QLabel("版本 1.0.0")
+        version = QLabel("版本 1.0.2")
         version.setFont(QFont("-apple-system, BlinkMacSystemFont, Segoe UI", 13))
         version.setStyleSheet("color: #86868b;")
         version.setAlignment(Qt.AlignCenter)
@@ -305,7 +305,7 @@ class AboutDialog(QDialog):
         desc.setStyleSheet("color: #1d1d1f;")
         desc.setAlignment(Qt.AlignCenter)
 
-        features = QLabel("✓ 系统信息监控  ✓ 服务管理\n✓ 网络配置  ✓ 用户管理  ✓ 日志清理")
+        features = QLabel("✓ 系统信息监控  ✓ 服务管理\n✓ 网络配置  ✓ 日志清理")
         features.setFont(QFont("-apple-system, BlinkMacSystemFont, Segoe UI", 12))
         features.setStyleSheet("color: #86868b;")
         features.setAlignment(Qt.AlignCenter)
@@ -1163,7 +1163,7 @@ class MainWindow(QMainWindow):
     def __init__(self, client):
         super().__init__()
         self.client = client
-        self.setWindowTitle("银河麒麟运维管理工具")
+        self.setWindowTitle("麒麟运维百宝箱")
         self.setGeometry(100, 100, 1200, 800)
         self.setStyleSheet(AppleStyleSheet.MAIN_WINDOW)
         self.init_ui()

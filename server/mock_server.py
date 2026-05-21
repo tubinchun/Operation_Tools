@@ -18,7 +18,7 @@ logger = logging.getLogger('MockServer')
 
 
 class MockServerProtocol:
-    VERSION = "1.0.0"
+    VERSION = "1.0.2"
     HEADER_SIZE = 8
 
     @staticmethod

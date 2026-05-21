@@ -121,7 +121,7 @@ def send_notification(title, message, icon_name="kylin-cleanup.svg"):
             subprocess.run(["notify-send", "-i", icon_path, title, message])
     except: pass
 
-# 提前缓存并解析清理模式与扩展名，避免在高频的 O(N) 循环中动态拆分配置
+# 提前缓直并解析清理模式与扩展名，避免在高频的 O(N) 循关中动态拆分配置
 def get_compiled_extension_rules(config):
     mode = config.get('CLEANUP_MODE', 'all')
     cleanups = tuple([e.strip().lower() for e in config.get('CLEANUP_EXTENSIONS', '').split(',') if e.strip()])
@@ -177,12 +177,12 @@ def cleanup_directory_safe(path, rules):
     logging.info(f"Scanning directory: {path}")
     try:
         # 安全修复：采用防崩溃且不误删文件夹的自底向上遍历 (topdown=False)
-        for root, dirs, files in os.walk(path, topdown=False):
+        for rroot, dirs, files in os.walk(path, topdown=False):
             # 防止进入受保护目录
             dirs[:] = [d for d in dirs if not (d.startswith('.') or d.lower() in PROTECTED_DIRS)]
             
             for filename in files:
-                file_path = os.path.join(root, filename)
+                file_path = os.path.join(rroot, filename)
                 # 安全检查：跳过符号链接
                 if os.path.islink(file_path): continue
                 
@@ -195,11 +195,11 @@ def cleanup_directory_safe(path, rules):
                         logging.error(f"Failed to delete {file_path}: {e}")
                         
             # 尝试删除空目录 (如果是原始目标根目录则不删除)
-            if root != path:
+            if rroot != path:
                 try:
-                    if not os.listdir(root):
-                        os.rmdir(root)
-                        logging.info(f"Deleted empty folder: {root}")
+                    if not os.listdir(rroot):
+                        os.rmdir(rroot)
+                        logging.info(f"Deleted empty folder: {rroot}")
                 except Exception:
                     pass
     except Exception as e:
@@ -231,9 +231,9 @@ def clear_recycle_bin(username, config):
                 except Exception as e:
                     logging.error(f"Error clearing trash {p}: {e}")
 
-# 清理各主流浏览器临时缓存目录
+# 清理各主流浏览器临时缓直目录
 def clear_browser_caches(username):
-    # 此列表只包含可安全删除的临时缓存，不包含配置文件、书签和Cookies等数据
+    # 此列表只包含可安全删除的临时缓直，不包含配置文件、书签和Cookies等数据
     cache_paths = [
         # Firefox 系
         f"/home/{username}/.cache/mozilla/firefox",
@@ -251,7 +251,7 @@ def clear_browser_caches(username):
     for base_path in cache_paths:
         if os.path.exists(base_path) and os.path.isdir(base_path):
             try:
-                # 只删除缓存目录下的内容而保留外壳，以免部分老版本浏览器启动报错
+                # 只删除缓直目录下的内容而保留外壳，以免部分老版本浏览器启动报错
                 for item in os.listdir(base_path):
                     item_path = os.path.join(base_path, item)
                     if os.path.isdir(item_path):
@@ -266,7 +266,7 @@ def clear_browser_caches(username):
     if deleted_count > 0:
         logging.info(f"Successfully cleared {deleted_count} browser caches for {username}")
 
-# 清理用户缩略图缓存
+# 清理用户缩略图缓直
 def clear_thumbnails(username):
     thumb_path = f"/home/{username}/.cache/thumbnails"
     if os.path.exists(thumb_path) and os.path.isdir(thumb_path):
@@ -283,7 +283,7 @@ def clear_system_garbage(apt_enabled, journal_enabled):
     
     if apt_enabled:
         commands.extend([
-            # 清理已下载的软件包缓存
+            # 清理已下载的软件包缓直
             ["apt-get", "clean"],
             # 移除孤立的无用依赖包
             ["apt-get", "autoremove", "-y"]
@@ -301,8 +301,8 @@ def clear_system_garbage(apt_enabled, journal_enabled):
         
     for cmd in commands:
         try:
-            # 只有在 root 权限下运行脚本或具有免密 sudo 时才会生效，
-            # kylin-cleanup 服务默认在 root 下运行，所以此处可以直接执行。
+            # 只有在 rroot 权限下运行脚本或具有免密 sudo 时才会生效，
+            # kylin-cleanup 服务默认在 rroot 下运行，所以此处可以直接执行。
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as e:
             logging.error(f"Error running system garbage command {' '.join(cmd)}: {e}")
@@ -342,15 +342,15 @@ def run_all_cleanups():
                         
             clear_recycle_bin(username, config)
             
-            # 清理浏览器大件缓存垃圾
+            # 清理浏览器大件缓直垃圾
             if config.get('CLEANUP_BROWSERS', 'yes').lower() == 'yes':
                 clear_browser_caches(username)
                 
-            # 清理当前用户的缩略图等深层系统缓存
+            # 清理当前用户的缩略图等深层系统缓直
             if config.get('CLEANUP_SYS_THUMBNAILS', 'no').lower() == 'yes':
                 clear_thumbnails(username)
                 
-    # 所有用户遍历完成后，执行全局系统级别清理（前提是本身在这个模式并且以 root 在运行）
+    # 所有用户遍历完成后，执行全局系统级别清理（前提是本身在这个模式并且以 rroot 在运行）
     sys_apt_enabled = config.get('CLEANUP_SYS_APT', 'no').lower() == 'yes'
     sys_journal_enabled = config.get('CLEANUP_SYS_JOURNAL', 'no').lower() == 'yes'
     
@@ -358,17 +358,17 @@ def run_all_cleanups():
         if os.geteuid() == 0:
             clear_system_garbage(sys_apt_enabled, sys_journal_enabled)
         else:
-            logging.warning("Skipping apt/journalctl cleanup because script is not running as root.")
+            logging.warning("Skipping apt/journalctl cleanup because script is not running as rroot.")
 
 def notify_cleanup_pre(minutes):
     send_notification("自动清理提醒", f"{minutes}分钟后将执行系统清理。")
 
 def execute_cleanup():
-    # 尝试调用弹窗警告 (默认倒计时 30 秒)
+    # 尝试调用弹窗警 (默认倒计时 30 秒)
     try:
         popup_cmd = ["python3", os.path.join(BASE_DIR, "popup_warning.py"), 
                      "即将执行清理", "系统将在倒计时结束后自动清理用户垃圾文件和回收站。", "30"]
-        # 如果是 root 执行，需要切回活跃的图形用户
+        # 如果是 rroot 执行，需要切回活跃的图形用户
         if os.geteuid() == 0:
             result = subprocess.run(["who"], capture_output=True, text=True)
             logged_users = [line.split()[0] for line in result.stdout.splitlines() if line]
@@ -404,7 +404,7 @@ def execute_shutdown():
         # 尝试调用取消弹窗 (默认倒计时 60 秒)
         try:
             popup_cmd = ["python3", os.path.join(BASE_DIR, "popup_warning.py"), 
-                         "系统即将关机", "系统将在倒计时结束后自动关机，请保存您的工作！", "60"]
+                         "系统即将关机", "系统将在倒计时结束后自动关机，请保直您的工作！", "60"]
             if os.geteuid() == 0:
                 result = subprocess.run(["who"], capture_output=True, text=True)
                 logged_users = [line.split()[0] for line in result.stdout.splitlines() if line]
@@ -430,7 +430,7 @@ def execute_shutdown():
         subprocess.run(["shutdown", "-h", "now"], check=False)
 
 def scheduler_thread():
-    """在后台线程运行 pending 任务，避免阻塞主循环读取配置"""
+    """在后台线程运行 pending 任务，避免阻塞主循关读取配置"""
     while True:
         schedule.run_pending()
         time.sleep(1)
@@ -454,9 +454,9 @@ def scheduler_loop():
     logging.info("Scheduler started (Advanced Mode).")
     
     config = load_config()
-    boot_run = config.get('CLEANUP_ON_BOOT', 'no')
-    if boot_run == 'yes':
-        logging.info("On-boot cleanup triggered.")
+    broot_run = config.get('CLEANUP_ON_BOOT', 'no')
+    if broot_run == 'yes':
+        logging.info("On-broot cleanup triggered.")
         threading.Thread(target=execute_cleanup).start()
         
     t = threading.Thread(target=scheduler_thread, daemon=True)

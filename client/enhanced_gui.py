@@ -45,17 +45,17 @@ class AboutDialog(QDialog):
         self.setFixedSize(400, 300)
         layout = QVBoxLayout()
 
-        title = QLabel("银河麒麟运维管理工具")
+        title = QLabel("麒麟运维百宝箱")
         title.setFont(QFont("Arial", 16, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
 
-        version = QLabel("版本: 1.0.0")
+        version = QLabel("版本: 1.0.2")
         version.setAlignment(Qt.AlignCenter)
 
         desc = QLabel("适配: 银河麒麟桌面V10 SP1\n"
                      "架构: ARM/飞腾CPU\n\n"
                      "功能: 系统信息监控、服务管理、\n"
-                     "     网络配置、用户管理、日志清理等")
+                     "     网络配置、日志清理等")
         desc.setAlignment(Qt.AlignCenter)
 
         contact = QLabel("技术支持: 400-xxx-xxxx")
@@ -757,7 +757,7 @@ class MainWindow(QMainWindow):
     def __init__(self, client):
         super().__init__()
         self.client = client
-        self.setWindowTitle("银河麒麟运维管理工具 v1.0.0")
+        self.setWindowTitle("麒麟运维百宝箱 v1.0.0")
         self.setGeometry(100, 100, 1200, 800)
         self.init_ui()
 

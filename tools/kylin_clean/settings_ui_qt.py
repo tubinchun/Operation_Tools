@@ -62,7 +62,7 @@ DEFAULT_CONFIG = {
     'cleanup_sys_journal': 'no',
     'cleanup_sys_thumbnails': 'no',
     'cleanup_frequency': 'daily',  # daily, weekly, monthly
-    'cleanup_on_boot': 'no',
+    'cleanup_on_broot': 'no',
     'cleanup_interval': '0'        # 0=off, otherwise hours (e.g., 2, 4, 8)
 }
 
@@ -180,7 +180,7 @@ class KylinCleanupSettings(QMainWindow):
             
             qr_label = QLabel()
             # 允许等比缩小避免越界
-            qr_label.setPixmap(pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            qr_label.setPixmap(pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmroothTransformation))
             qr_label.setFixedSize(200, 200)
             qr_label.setAlignment(Qt.AlignCenter)
             qr_layout.addWidget(qr_label)
@@ -350,11 +350,11 @@ class KylinCleanupSettings(QMainWindow):
         glayout_clean.addLayout(hinterval)
         
         # 开机立即清理
-        hboot = QHBoxLayout()
-        self.boot_check = QCheckBox("每次开机时自动执行一次后台系统清理")
-        hboot.addWidget(self.boot_check)
-        hboot.addStretch(1)
-        glayout_clean.addLayout(hboot)
+        hbroot = QHBoxLayout()
+        self.broot_check = QCheckBox("每次开机时自动执行一次后台系统清理")
+        hbroot.addWidget(self.broot_check)
+        hbroot.addStretch(1)
+        glayout_clean.addLayout(hbroot)
         
         h2 = QHBoxLayout()
         h2.addWidget(QLabel("提前提醒:"))
@@ -435,7 +435,7 @@ class KylinCleanupSettings(QMainWindow):
         glayout_dirs.addLayout(grid)
         
         # 浏览器清理独立选项
-        self.browser_check = QCheckBox("深度清理常用浏览器缓存 (Firefox, Chrome, Edge, 360等)")
+        self.browser_check = QCheckBox("深度清理常用浏览器缓直 (Firefox, Chrome, Edge, 360等)")
         self.browser_check.setStyleSheet("color: #2980b9; font-weight: bold; margin-top: 5px;")
         glayout_dirs.addWidget(self.browser_check)
         
@@ -445,9 +445,9 @@ class KylinCleanupSettings(QMainWindow):
         sys_layout = QVBoxLayout(sys_group)
         sys_layout.setContentsMargins(5, 10, 5, 5)
         
-        self.sys_apt_check = QCheckBox("清理陈旧的 APT 安装包缓存 (释放大量系统盘空间)")
+        self.sys_apt_check = QCheckBox("清理陈旧的 APT 安装包缓直 (释放大量系统盘空间)")
         self.sys_journal_check = QCheckBox("清理 Systemd 历史运行日志 (仅保留最近7天)")
-        self.sys_thumbnails_check = QCheckBox("清理陈旧的图片与视频缩略图缓存")
+        self.sys_thumbnails_check = QCheckBox("清理陈旧的图片与视频缩略图缓直")
         
         sys_layout.addWidget(self.sys_apt_check)
         sys_layout.addWidget(self.sys_journal_check)
@@ -518,7 +518,7 @@ class KylinCleanupSettings(QMainWindow):
         glayout_svc.addWidget(btn_stop)
         
         btn_restart = QPushButton("重启服务")
-        btn_restart.setIcon(self._get_icon("system-reboot", "restart"))
+        btn_restart.setIcon(self._get_icon("system-rebroot", "restart"))
         btn_restart.clicked.connect(self.restart_service)
         glayout_svc.addWidget(btn_restart)
         
@@ -566,7 +566,7 @@ class KylinCleanupSettings(QMainWindow):
         btn_reset.clicked.connect(self.reset_to_default)
         layout.addWidget(btn_reset)
         
-        btn_save = QPushButton(" 保存设置")
+        btn_save = QPushButton(" 保直设置")
         btn_save.setIcon(self._get_icon("document-save", "save"))
         btn_save.setStyleSheet("background-color: #2ecc71; color: white; font-weight: bold; padding: 8px 25px; border-radius: 5px;")
         btn_save.clicked.connect(self.save_config)
@@ -772,7 +772,7 @@ class KylinCleanupSettings(QMainWindow):
                         freq_map = {'daily': 0, 'weekly': 1, 'monthly': 2}
                         self.freq_combo.setCurrentIndex(freq_map.get(v.lower(), 0))
                     elif k == 'CLEANUP_ON_BOOT':
-                        self.boot_check.setChecked(v.lower() == 'yes')
+                        self.broot_check.setChecked(v.lower() == 'yes')
                     elif k == 'CLEANUP_INTERVAL':
                         interval_map = {'0': 0, '2': 1, '4': 2, '8': 3, '12': 4}
                         self.interval_combo.setCurrentIndex(interval_map.get(v, 0))
@@ -802,7 +802,7 @@ class KylinCleanupSettings(QMainWindow):
         sys_jour = "yes" if self.sys_journal_check.isChecked() else "no"
         sys_thumb = "yes" if self.sys_thumbnails_check.isChecked() else "no"
         
-        boot_run = "yes" if self.boot_check.isChecked() else "no"
+        broot_run = "yes" if self.broot_check.isChecked() else "no"
         freq_list = ['daily', 'weekly', 'monthly']
         freq = freq_list[self.freq_combo.currentIndex()]
         
@@ -823,7 +823,7 @@ CLEANUP_SYS_APT="{sys_apt}"
 CLEANUP_SYS_JOURNAL="{sys_jour}"
 CLEANUP_SYS_THUMBNAILS="{sys_thumb}"
 CLEANUP_FREQUENCY="{freq}"
-CLEANUP_ON_BOOT="{boot_run}"
+CLEANUP_ON_BOOT="{broot_run}"
 CLEANUP_INTERVAL="{interval}"
 '''
         try:
@@ -831,7 +831,7 @@ CLEANUP_INTERVAL="{interval}"
             try:
                 with open(CONFIG_FILE, 'w') as f:
                     f.write(config_str)
-                QMessageBox.information(self, "成功", "设置已保存!")
+                QMessageBox.information(self, "成功", "设置已保直!")
                 return
             except PermissionError:
                 # 2. 如果直接写入失败，再调用提权命令（弹出密码框）
@@ -840,11 +840,11 @@ CLEANUP_INTERVAL="{interval}"
                 p.communicate(input=config_str.encode())
                 
                 if p.returncode == 0:
-                    QMessageBox.information(self, "成功", "设置已保存!")
+                    QMessageBox.information(self, "成功", "设置已保直!")
                 else:
                     QMessageBox.warning(self, "失败", "无法写入配置文件，请检查权限")
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"保存出错: {e}")
+            QMessageBox.critical(self, "错误", f"保直出错: {e}")
 
     def reset_to_default(self):
         reply = QMessageBox.question(self, "确认", "确定恢复默认配置吗？", 
@@ -864,14 +864,14 @@ CLEANUP_INTERVAL="{interval}"
             
             self.freq_combo.setCurrentIndex(0)
             self.interval_combo.setCurrentIndex(0)
-            self.boot_check.setChecked(False)
+            self.broot_check.setChecked(False)
             
             def_dirs = DEFAULT_CONFIG['cleanup_dirs'].split(',')
             for key, cb in self.dir_checks.items():
                 cb.setChecked(key in def_dirs)
                 
             self.toggle_shutdown_widgets()
-            QMessageBox.information(self, "提示", "已恢复界面默认值，请点击「保存设置」生效。")
+            QMessageBox.information(self, "提示", "已恢复界面默认值，请点击「保直设置」生效。")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -11,7 +11,7 @@ from server.server import KylinServer, KylinServerCommands
 
 
 def main():
-    parser = argparse.ArgumentParser(description='银河麒麟运维管理工具 - 服务端')
+    parser = argparse.ArgumentParser(description='麒麟运维百宝箱 - 服务端')
     parser.add_argument('--host', default='0.0.0.0', help='监听地址 (默认: 0.0.0.0)')
     parser.add_argument('--port', type=int, default=29876, help='监听端口 (默认: 29876)')
     args = parser.parse_args()
@@ -36,7 +36,7 @@ def main():
     server.register_handler('cleanup_logs', KylinServerCommands.cleanup_logs)
     server.register_handler('get_system_logs', KylinServerCommands.get_system_logs)
 
-    print(f"银河麒麟运维管理工具服务端启动中...")
+    print(f"麒麟运维百宝箱服务端启动中...")
     print(f"监听地址: {args.host}:{args.port}")
 
     try:

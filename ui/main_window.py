@@ -331,19 +331,19 @@ class AboutDialog(QDialog):
         self.setFixedSize(400, 300)
         layout = QVBoxLayout()
 
-        title = QLabel("银河麒麟运维管理工具")
+        title = QLabel("麒麟运维百宝箱")
         title.setFont(QFont("Arial", 16, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
 
-        version = QLabel("版本: 1.0.0")
+        version = QLabel("版本: 1.0.2")
         version.setAlignment(Qt.AlignCenter)
 
         desc = QLabel("适配: 银河麒麟桌面V10 SP1\n\n"
-                     "功能: 系统信息监控、服务管理、\n"
-                     "     网络配置、用户管理、日志清理等")
+                     "功能: 系统信息监控、U盘工具箱、\n"
+                     "     系统清理等")
         desc.setAlignment(Qt.AlignCenter)
 
-        contact = QLabel("技术支持: 400-xxx-xxxx")
+        contact = QLabel("技术支持: linuxk8s@qq.com")
         contact.setAlignment(Qt.AlignCenter)
 
         close_btn = QPushButton("关闭")
@@ -539,8 +539,8 @@ class LineChartWidget(QWidget):
             painter.setPen(pen)
             
             if len(points) >= 3:
-                smooth_path = QPainterPath()
-                smooth_path.moveTo(points[0])
+                smrooth_path = QPainterPath()
+                smrooth_path.moveTo(points[0])
                 for i in range(1, len(points)):
                     if i < len(points) - 1:
                         prev_point = points[i-1]
@@ -552,10 +552,10 @@ class LineChartWidget(QWidget):
                         cpx2 = curr_point.x() + (next_point.x() - prev_point.x()) / 6
                         cpy2 = curr_point.y() + (next_point.y() - prev_point.y()) / 6
                         
-                        smooth_path.cubicTo(QPointF(cpx1, cpy1), QPointF(cpx2, cpy2), next_point)
+                        smrooth_path.cubicTo(QPointF(cpx1, cpy1), QPointF(cpx2, cpy2), next_point)
                     else:
-                        smooth_path.lineTo(points[i])
-                painter.drawPath(smooth_path)
+                        smrooth_path.lineTo(points[i])
+                painter.drawPath(smrooth_path)
             else:
                 for i in range(1, len(points)):
                     painter.drawLine(points[i-1], points[i])
@@ -831,12 +831,6 @@ class SystemStatusPage(QWidget):
         process_label.setStyleSheet(f"color: {TEXT_PRIMARY};")
         right_header.addWidget(process_label)
         right_header.addStretch()
-
-        refresh_btn = QPushButton("刷新")
-        refresh_btn.setIcon(QIcon.fromTheme("view-refresh"))
-        refresh_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
-        refresh_btn.clicked.connect(self.load_status)
-        right_header.addWidget(refresh_btn)
         right_layout.addLayout(right_header)
 
         self.process_tabs = QTabWidget()
@@ -1018,7 +1012,7 @@ class SystemStatusPage(QWidget):
             import getpass
             return getpass.getuser()
         except:
-            return 'root'
+            return 'rroot'
 
     def fill_table(self, table, processes):
         """填充进程表格"""
@@ -1297,7 +1291,7 @@ class UserManagementPage(QWidget):
     def show_reset_password_dialog(self):
         selected_items = self.user_list.selectedItems()
         if not selected_items:
-            QMessageBox.warning(self, "警告", "请先选择一个用户")
+            QMessageBox.warning(self, "警", "请先选择一个用户")
             return
         
         username = selected_items[0].text()
@@ -1354,11 +1348,11 @@ class UserManagementPage(QWidget):
         confirm = self.confirm_input.text()
         
         if not password:
-            QMessageBox.warning(self, "警告", "请输入密码")
+            QMessageBox.warning(self, "警", "请输入密码")
             return
         
         if password != confirm:
-            QMessageBox.warning(self, "警告", "两次输入的密码不一致")
+            QMessageBox.warning(self, "警", "两次输入的密码不一致")
             return
         
         def fetch():
@@ -1735,7 +1729,7 @@ class HostsEditorDialog(QDialog):
                 self.text_edit.setPlainText(self.original_content)
                 self.status_label.setText("已加载 hosts 文件")
         except Exception as e:
-            QMessageBox.warning(self, "警告", f"无法读取 hosts 文件: {str(e)}")
+            QMessageBox.warning(self, "警", f"无法读取 hosts 文件: {str(e)}")
             self.text_edit.setPlainText("# hosts file\n127.0.0.1 localhost")
 
     def restore_default(self):
@@ -1751,7 +1745,7 @@ ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters"""
         self.text_edit.setPlainText(default_content)
         self.force_restore = True
-        self.status_label.setText("已恢复到默认内容（可点击保存）")
+        self.status_label.setText("已恢复到默认内容（可点击保直）")
 
     def save_hosts(self):
         new_content = self.text_edit.toPlainText()
@@ -1761,21 +1755,16 @@ ff02::2 ip6-allrouters"""
             return
 
         try:
-            import subprocess
-            result = subprocess.run(
-                ['sudo', 'cp', self.hosts_path, f'{self.hosts_path}.bak'],
-                capture_output=True, text=True
-            )
+            from core.auth_service import AuthService
+            auth_service = AuthService()
             
-            if result.returncode != 0:
+            result = auth_service.execute(['cp', self.hosts_path, f'{self.hosts_path}.bak'])
+            if not result.get('success'):
                 QMessageBox.warning(self, "警告", "无法创建备份文件")
             
-            result = subprocess.run(
-                ['sudo', 'bash', '-c', f'cat > {self.hosts_path} << "EOF"\n{new_content}\nEOF'],
-                capture_output=True, text=True
-            )
+            result = auth_service.execute(['bash', '-c', f'cat > {self.hosts_path} << "EOF"\n{new_content}\nEOF'])
             
-            if result.returncode == 0:
+            if result.get('success'):
                 self.history.append(self.backup_content)
                 self.backup_content = new_content
                 self.force_restore = False
@@ -1783,7 +1772,7 @@ ff02::2 ip6-allrouters"""
                 QMessageBox.information(self, "成功", "hosts 文件已更新")
                 self.accept()
             else:
-                error_msg = result.stderr if result.stderr else "保存失败"
+                error_msg = result.get('error', result.get('stderr', "保存失败"))
                 QMessageBox.error(self, "错误", f"保存失败: {error_msg}")
                 
         except Exception as e:
@@ -1916,7 +1905,7 @@ class SystemInfoDialog(QDialog):
 
         self.hardware_card = InfoCard("硬件信息", "hardware")
         self.software_card = InfoCard("软件信息", "software")
-        self.storage_card = InfoCard("存储信息", "harddisk")
+        self.storage_card = InfoCard("直储信息", "harddisk")
         self.network_card = InfoCard("网络信息", "network")
         
         self.scroll_layout.addWidget(self.hardware_card, 0, 0)
@@ -2313,7 +2302,7 @@ class PrinterRepairDialog(QDialog):
                 if result.get('output'):
                     self.log_text.append(result['output'])
                 if result.get('error'):
-                    self.log_text.append(f"警告: {result['error']}")
+                    self.log_text.append(f"警: {result['error']}")
                 QMessageBox.information(self, "成功", "打印机服务已修复并重启。")
             else:
                 self.log_text.append(f"❌ 修复失败: {result.get('message', '未知错误')}")
@@ -2391,13 +2380,6 @@ class CleanupPage(QWidget):
         self.auto_start_check.stateChanged.connect(self.update_auto_start)
         status_bar_layout.addWidget(self.auto_start_check)
 
-        refresh_btn = QPushButton()
-        refresh_btn.setIcon(QIcon.fromTheme("view-refresh"))
-        refresh_btn.setStyleSheet(SECONDARY_BUTTON_STYLE)
-        refresh_btn.setFixedSize(36, 30)
-        refresh_btn.clicked.connect(self.load_status)
-        status_bar_layout.addWidget(refresh_btn)
-        
         main_layout.addWidget(status_bar)
 
         disk_bar = QFrame()
@@ -2583,9 +2565,9 @@ class CleanupPage(QWidget):
         row_layout.addStretch()
         schedule_group_layout.addLayout(row_layout)
 
-        self.boot_clean_check = QCheckBox("每次开机时自动执行一次后台系统清理")
-        self.boot_clean_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
-        schedule_group_layout.addWidget(self.boot_clean_check)
+        self.broot_clean_check = QCheckBox("每次开机时自动执行一次后台系统清理")
+        self.broot_clean_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        schedule_group_layout.addWidget(self.broot_clean_check)
 
         row_layout = QHBoxLayout()
         row_layout.setSpacing(12)
@@ -2717,7 +2699,7 @@ class CleanupPage(QWidget):
 
         scroll_layout.addWidget(dirs_group)
 
-        browser_check = QCheckBox("深度清理常用浏览器缓存 (Firefox, Chrome, Edge, 360等)")
+        browser_check = QCheckBox("深度清理常用浏览器缓直 (Firefox, Chrome, Edge, 360等)")
         browser_check.setStyleSheet(f"color: {MAC_BLUE};")
         browser_check.setChecked(True)
         scroll_layout.addWidget(browser_check)
@@ -2727,7 +2709,7 @@ class CleanupPage(QWidget):
         system_group_layout.setContentsMargins(12, 12, 12, 12)
         system_group_layout.setSpacing(10)
 
-        self.apt_check = QCheckBox("清理陈旧的APT安装包缓存 (释放大量系统盘空间)")
+        self.apt_check = QCheckBox("清理陈旧的APT安装包缓直 (释放大量系统盘空间)")
         self.apt_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
         system_group_layout.addWidget(self.apt_check)
 
@@ -2735,7 +2717,7 @@ class CleanupPage(QWidget):
         self.journal_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
         system_group_layout.addWidget(self.journal_check)
 
-        self.thumbnails_check = QCheckBox("清理陈旧的图片与视频缩略图缓存")
+        self.thumbnails_check = QCheckBox("清理陈旧的图片与视频缩略图缓直")
         self.thumbnails_check.setStyleSheet(f"color: {TEXT_PRIMARY};")
         system_group_layout.addWidget(self.thumbnails_check)
 
@@ -2974,7 +2956,7 @@ class CleanupPage(QWidget):
                 self.mode_all_radio.setChecked(mode == 'all')
                 self.mode_ext_radio.setChecked(mode == 'ext_only')
                 
-                self.boot_clean_check.setChecked(self.config.get('CLEANUP_ON_BOOT', 'no') == 'yes')
+                self.broot_clean_check.setChecked(self.config.get('CLEANUP_ON_BOOT', 'no') == 'yes')
                 self.auto_start_check.setChecked(self.config.get('SHUTDOWN_ENABLED', 'no') == 'yes')
 
         thread = WorkerThread(fetch)
@@ -3009,7 +2991,7 @@ class CleanupPage(QWidget):
             'CLEANUP_MODE': 'all' if self.mode_all_radio.isChecked() else 'ext_only',
             'CLEANUP_DIRS': ','.join(dirs),
             'CLEANUP_FREQUENCY': freq,
-            'CLEANUP_ON_BOOT': 'yes' if self.boot_clean_check.isChecked() else 'no',
+            'CLEANUP_ON_BOOT': 'yes' if self.broot_clean_check.isChecked() else 'no',
             'CLEANUP_BROWSERS': 'yes',
             'CLEANUP_SYS_APT': 'yes' if self.apt_check.isChecked() else 'no',
             'CLEANUP_SYS_JOURNAL': 'yes' if self.journal_check.isChecked() else 'no',
@@ -3041,7 +3023,7 @@ class CleanupPage(QWidget):
         self.daily_time_edit.setText('18:00')
         self.frequency_combo.setCurrentIndex(0)
         self.patrol_combo.setCurrentIndex(0)
-        self.boot_clean_check.setChecked(False)
+        self.broot_clean_check.setChecked(False)
         self.reminder_spin.setValue(5)
         self.shutdown_enable_check.setChecked(False)
         self.shutdown_time_edit.setText('20:00')
@@ -3322,9 +3304,13 @@ class FeatureToolsPage(QWidget):
         kms_card.clicked.connect(self.open_kms_generator)
         grid_layout.addWidget(kms_card, 1, 1)
 
-        cleanup_card = ToolCard("edit-delete", "系统清理", "清理系统垃圾文件、浏览器缓存、回收站等", "#FF3B30")
+        cleanup_card = ToolCard("edit-delete", "系统清理", "清理系统垃圾文件、浏览器缓直、回收站等", "#FF3B30")
         cleanup_card.clicked.connect(self.open_cleanup)
         grid_layout.addWidget(cleanup_card, 2, 0)
+
+        usb_card = ToolCard("usb-fix-tool", "U盘工具箱", "检测修复只读U盘，支持格式化、安全擦除和启动盘制作", "#5AC8FA")
+        usb_card.clicked.connect(self.open_usb_fix_tool)
+        grid_layout.addWidget(usb_card, 2, 1)
 
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -3365,6 +3351,21 @@ class FeatureToolsPage(QWidget):
         layout.addWidget(cleanup_page)
         
         dialog.exec_()
+
+    def open_usb_fix_tool(self):
+        candidates = [
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "usb_fix_tool", "usb_tool.py"),
+            "/usr/share/kylin-system-tools/tools/usb_fix_tool/usb_tool.py",
+        ]
+        script_path = next((path for path in candidates if os.path.exists(path)), None)
+
+        try:
+            if script_path:
+                subprocess.Popen([sys.executable or "python3", script_path])
+            else:
+                subprocess.Popen(["kylin-usb-tool"])
+        except Exception as e:
+            QMessageBox.warning(self, "启动失败", f"无法启动U盘工具箱: {str(e)}")
 
 
 class KmsScriptGeneratorDialog(QDialog):
@@ -3678,7 +3679,7 @@ class KmsScriptGeneratorDialog(QDialog):
                 abs_path = os.path.abspath(file_path[0])
                 
                 if abs_path in self.license_files:
-                    QMessageBox.warning(self, "警告", "该文件已添加！")
+                    QMessageBox.warning(self, "警", "该文件已添加！")
                     return
                 
                 with open(abs_path, 'rb') as f:
@@ -3711,9 +3712,9 @@ class KmsScriptGeneratorDialog(QDialog):
 # 生成时间: {now}
 # ============================================================
 
-# 环境检查
+# 关境检查
 if [ "$(id -u)" -ne 0 ]; then
-    echo ">>> 请以 root 权限运行，正在尝试 sudo..."
+    echo ">>> 请以 rroot 权限运行，正在尝试 sudo..."
     exec sudo "$0" "$@"
 fi
 
@@ -3723,16 +3724,16 @@ KMS_SERVER="{self.kms_server}"
         
         if self.options['network_diagnosis']:
             script += """
-echo ">>> 正在执行环境诊断..."
+echo ">>> 正在执行关境诊断..."
 if ! ping -c 1 -W 2 "$KMS_SERVER" &>/dev/null; then
-    echo "警告: 无法连通 KMS 服务器 ($KMS_SERVER)，请检查网络"
+    echo "警: 无法连通 KMS 服务器 ($KMS_SERVER)，请检查网络"
 fi
 
 """
         
         if self.options['clone_fix']:
             script += """
-echo ">>> 正在清理旧硬件标识 (克隆机修复)..."
+echo ">>> 正在清理旧硬件标识 (克隆机修修复)..."
 [ -f "/etc/.kyhwid" ] && rm -vf /etc/.kyhwid
 
 """
@@ -3805,7 +3806,7 @@ if command -v kylin-activation &>/dev/null; then
     kylin-activation -auto
     echo ">>> 激活请求已发送，请在系统属性界面查看结果。"
 else
-    echo "错误: 未找到系统激活工具，请手动检查环境。"
+    echo "错误: 未找到系统激活工具，请手动检查关境。"
 fi
 
 echo -e "\\n脚本执行完成！"
@@ -3815,14 +3816,14 @@ echo -e "\\n脚本执行完成！"
 
     def download_script(self):
         script = self.generate_script()
-        file_path = QFileDialog.getSaveFileName(self, "保存脚本", "kms_activate.sh", "Shell Script (*.sh)")
+        file_path = QFileDialog.getSaveFileName(self, "保直脚本", "kms_activate.sh", "Shell Script (*.sh)")
         if file_path[0]:
             try:
                 with open(file_path[0], 'w') as f:
                     f.write(script)
-                QMessageBox.information(self, "成功", "脚本已保存！")
+                QMessageBox.information(self, "成功", "脚本已保直！")
             except Exception as e:
-                QMessageBox.error(self, "错误", f"保存失败: {str(e)}")
+                QMessageBox.error(self, "错误", f"保直失败: {str(e)}")
 
     def copy_script(self):
         script = self.generate_script()
@@ -3847,7 +3848,7 @@ echo -e "\\n脚本执行完成！"
         
         valid, message = self.validate_script(script)
         if not valid:
-            QMessageBox.warning(self, "警告", f"脚本验证失败: {message}")
+            QMessageBox.warning(self, "警", f"脚本验证失败: {message}")
             return
         
         reply = QMessageBox.question(
@@ -3857,7 +3858,7 @@ echo -e "\\n脚本执行完成！"
             "注意：\n"
             "- 脚本需要管理员权限运行\n"
             "- 请确保已备份重要数据\n"
-            "- 建议在虚拟机或测试环境中先测试\n\n"
+            "- 建议在虚拟机或测试关境中先测试\n\n"
             "确定要继续执行吗？",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
@@ -3983,7 +3984,11 @@ class MainWindow(QMainWindow):
     def __init__(self, client):
         super().__init__()
         self.client = client
-        self.setWindowTitle("Kylinos-Desktop-Tools")
+        self.setWindowTitle("麒麟运维百宝箱")
+        try:
+            self.setWindowIcon(QIcon.fromTheme("kylin-system-tools"))
+        except:
+            pass
         self.setGeometry(100, 100, 1200, 800)
         self.init_ui()
 
@@ -4040,7 +4045,7 @@ class MainWindow(QMainWindow):
         logo_layout = QVBoxLayout(logo_frame)
         logo_layout.setContentsMargins(20, 20, 20, 20)
 
-        logo_label = QLabel("Kylinos-Desktop-Tools")
+        logo_label = QLabel("Kylin-Tools")
         logo_label.setFont(create_font(FONT_SIZE_LARGE, "bold"))
         logo_label.setStyleSheet("color: #FFFFFF;")
         logo_layout.addWidget(logo_label)
@@ -4181,13 +4186,6 @@ class MainWindow(QMainWindow):
         top_bar_layout.setContentsMargins(20, 15, 20, 15)
         top_bar_layout.setSpacing(15)
 
-        search_input = QLineEdit()
-        search_input.setPlaceholderText("搜索")
-        search_input.setStyleSheet(LINE_EDIT_STYLE)
-        search_input.setFixedWidth(250)
-        search_action = QAction(QIcon.fromTheme("search"), "", search_input)
-        search_input.addAction(search_action, QLineEdit.LeadingPosition)
-        top_bar_layout.addWidget(search_input)
         top_bar_layout.addStretch()
 
         self.content_layout.addWidget(self.current_top_bar)

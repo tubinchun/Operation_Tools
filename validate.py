@@ -29,7 +29,7 @@ def test_command(name, func, *args, **kwargs):
 
 def main():
     print("=" * 60)
-    print("银河麒麟运维管理工具 - 功能验证")
+    print("麒麟运维百宝箱 - 功能验证")
     print("=" * 60)
     print()
 

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Kylin</vendor>
+  <vendor_url>https://www.kylinos.cn</vendor_url>
+
+  <action id="com.kylin.system-tools.run">
+    <description>Run Kylin System Tools</description>
+    <description xml:lang="zh_CN">运行麒麟运维百宝箱</description>
+    <message>Authentication is required to run Kylin System Tools</message>
+    <message xml:lang="zh_CN">运行麒麟运维百宝箱需要管理员权限</message>
+    <icon_name>kylin-system-tools</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/python3</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">/usr/share/kylin-system-tools/tools/usb_fix_tool/usb_tool.py</annotate>
+  </action>
+
+  <action id="com.kylin.system-tools.auth">
+    <description>Authorization Service for Kylin System Tools</description>
+    <description xml:lang="zh_CN">麒麟运维工具授权服务</description>
+    <message>Authentication is required for authorization service</message>
+    <message xml:lang="zh_CN">授权服务需要管理员权限</message>
+    <icon_name>kylin-system-tools</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/python3</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">-c</annotate>
+  </action>
+</policyconfig>
