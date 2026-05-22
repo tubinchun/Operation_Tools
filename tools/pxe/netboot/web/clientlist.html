@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh" style="height: 100%;">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport"
+		content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<link rel="bookmark" type="image/x-icon" href="favicon.ico" />
+	<link rel="shortcut icon" href="favicon.ico">
+	<link rel="icon" href="favicon.ico">
+</head>
+<body style="text-align: center;height: 100%;">
+	<div style="min-height: 100%;max-width: 1200px;margin: 20px;">
+		<div class="layui-row ">
+			<div class="layui-panel">
+				<div style="padding: 10px;">
+					<div class="layui-upload-list" style="text-align: left;max-width: 1480px;">
+						<table id="demo" lay-filter="demo"></table>
+					</div>
+				</div>
+			</div>
+		</div>
+</body>
+
+
+<script>
+	var tableIns
+	var submit
+	var selectconfig
+	var clientnum
+	layui.use(['table', 'laytpl', 'form','element'], function () {
+		var table = layui.table;
+		var laytpl = layui.laytpl;
+		var form = layui.form;
+		var formdata = new Object();
+		var element = layui.element;
+		laytpl.config({
+			open: '<%%',
+			close: '%%>'
+		});
+		
+		//第一个实例
+		tableIns = table.render({
+			elem: '#demo',
+			url: 'getclientlist',//数据接口,
+			//size: 'sm',
+			skin: 'row',
+			title:'终端列表',
+			even: true, //开启隔行背景
+			limit: 20,
+			limits: [1, 20, 50],
+			page: {
+                        layout: ['prev', 'page', 'next', 'skip', 'count', 'limit', 'refresh']
+                    },
+			text: {
+				none: '无数据' //默认：无数据。
+			},
+			cols: [
+				[ //表头
+					{ field: 'mac', title: 'MAC地址', align: 'center',width: 125, sort: true, fixed: 'left' },
+					{ field: 'ip', title: 'IP地址', align: 'center',width: 120, sort: true},
+					{ field: 'isoname', title: 'iso名称', width: 400},
+					{field:'progress', title: '安装进度', align: 'center',sort: true,templet: function(d){
+                        var ys = '';
+						var progressId = 'progress-' + d.mac.replace(/:/g, '-');
+                        if(0<=d.progress && d.progress<100){
+                            ys='layui-bg-blue'
+                        }else if(d.progress=100){
+                            ys='layui-bg-green'
+                        }
+                        return '<div lay-filter='+ progressId +' class="layui-progress layui-progress-big" lay-showpercent="true"><div class="layui-progress-bar '+ys+'" lay-percent="'+d.progress+'%"></div></div><br>'
+                    }},
+					{ field: 'status', title: '安装内容', minwidth: 300, templet:function(d){
+						return '<div id="msg-' + d.mac.replace(/:/g, '-') + '" >' +d.status+ '</div>'
+					}},
+				]
+			],
+			done:function (){
+	              element.render("progress");
+	           }
+		});
+		function updateProgressBar(mac, newProgress,newmesg) {
+			// 步骤1：处理唯一ID（替换MAC中的冒号，避免ID包含非法字符）
+			var macId = mac.replace(/:/g, '-');
+			var progressId = 'progress-' + macId;
+			var msgId = 'msg-' + macId;
+
+			// 步骤2：用element.progress()精准更新进度条（核心接口）
+			// 语法：element.progress(进度条ID, 新进度值)
+			element.progress(progressId, newProgress + '%');
+			$('#' + msgId).text(newmesg);
+		}
+		function pollProgress() {
+			$.get('/web/getclientlist', function(res) {
+			if(res.code === 0 && res.data.length > 0){
+				if(res.data.length!=clientnum){
+					tableIns.reloadData(res)
+					clientnum=res.data.length
+				}
+				res.data.forEach(function(item){
+					updateProgressBar(item.mac, item.progress,item.status);
+				});
+			}
+			});
+			setTimeout(pollProgress, 2000); // 每2秒轮询一次
+		}
+		pollProgress(); // 启动轮询（实际使用时解开注释）
+		var timer2 = setInterval(
+			function () {
+				$(".layui-icon-refresh").click();
+			}, 60000); // 每30秒刷新整个表格
+	});
+	
+
+</script>
+</html>

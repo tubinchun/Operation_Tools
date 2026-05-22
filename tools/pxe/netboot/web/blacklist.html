@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh" style="height: 100%;">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport"
+		content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<link rel="bookmark" type="image/x-icon" href="favicon.ico" />
+	<link rel="shortcut icon" href="favicon.ico">
+	<link rel="icon" href="favicon.ico">
+</head>
+<body style="text-align: center;height: 100%;">
+	<div style="min-height: 100%;max-width: 1200px;margin: 20px;">
+		<div style="padding: 10px;">
+			<fieldset class="layui-elem-field layui-field-title">
+				<legend>DHCP 黑白名单配置</legend>
+			</fieldset>
+			<div id="blacklist" lay-filter="blacklist"></div>
+		</div>
+</body>
+
+<script id="blacklisttmpl" type="text/html">
+	<form class="layui-form layui-form-pane" action="">
+		<div class="layui-form-item">
+			<label class="layui-form-label">白名单</label>
+			<div class="layui-input-block">
+				<textarea name="whitelist" placeholder="请输入白名单MAC地址，多个用逗号或换行分隔&#10;例如：AA:BB:CC:DD:EE:FF,11:22:33:44:55:66" class="layui-textarea" rows="5"><%= (d.whitelist || []).join(',') %></textarea>
+				<p style="color: gray;">白名单为空表示不启用白名单模式，非空时只允许白名单中的MAC地址获取IP</p>
+			</div>
+		</div>
+
+		<div class="layui-form-item">
+			<label class="layui-form-label">黑名单</label>
+			<div class="layui-input-block">
+				<textarea name="blacklist" placeholder="请输入黑名单MAC地址，多个用逗号或换行分隔&#10;例如：AA:BB:CC:DD:EE:FF,11:22:33:44:55:66" class="layui-textarea" rows="5"><%= (d.blacklist || []).join(',') %></textarea>
+				<p style="color: gray;">黑名单中的MAC地址将被拒绝获取IP，优先级高于白名单</p>
+			</div>
+		</div>
+
+		<div class="layui-form-item">
+			<div class="layui-input-block">
+				<button class="layui-btn" lay-submit lay-filter="saveblacklist">保存并重启服务</button>
+				<button type="reset" class="layui-btn layui-btn-primary">重置</button>
+			</div>
+		</div>
+	</form>
+</script>
+
+<script>
+	layui.use(['laytpl', 'form', 'layer'], function () {
+		var laytpl = layui.laytpl;
+		var form = layui.form;
+		var layer = layui.layer;
+
+		laytpl.config({
+			open: '<%',
+			close: '%>'
+		});
+
+		$.getJSON("/web/get_blackwhitelist", {}, function (data, status) {
+			if (status == "success") {
+				if(data.code==0){
+					var view = document.getElementById('blacklist');
+					var getTpl = blacklisttmpl.innerHTML;
+					laytpl(getTpl).render(data, function (html) {
+						view.innerHTML = html;
+						form.render();
+					});
+				} else {
+					layer.msg("获取配置失败: " + data.msg);
+				}
+			} else {
+				layer.msg("连接服务器失败");
+			}
+		});
+
+		form.on('submit(saveblacklist)', function (data) {
+			layer.load(1, {
+				shade: [0.5, '#fff'],
+				content: '请稍候',
+				success: function (layerContentStyle) {
+					layerContentStyle.find('.layui-layer-content').css({
+						'padding-top': '35px',
+						'text-align': 'left',
+						'width': '120px'
+					});
+				}
+			});
+
+			$.post("/web/set_blackwhitelist", data.field, function (res, status) {
+				if (status == "success") {
+					layer.msg('保存成功，服务正在重启...', {time: 3000});
+					setTimeout(function() {
+						layer.closeAll('loading');
+						window.location.reload();
+					}, 5000);
+				} else {
+					layer.closeAll('loading');
+					layer.msg("连接服务器失败");
+				}
+			});
+			return false;
+		});
+
+	});
+</script>
+</html>

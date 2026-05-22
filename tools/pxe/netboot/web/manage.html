@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="zh" style="height: 100%;">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport"
+		content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<link rel="bookmark" type="image/x-icon" href="favicon.ico" />
+	<link rel="shortcut icon" href="favicon.ico">
+	<link rel="icon" href="favicon.ico">
+</head>
+<body style="text-align: center;height: 100%;">
+	<div style="min-height: 100%;max-width: 1200px;margin: 20px;">
+		<div class="layui-row ">
+			<div class="layui-panel">
+				<div style="padding: 10px;">
+					<div class="layui-upload-list" style="text-align: left;max-width: 1480px;">
+						<div style="padding: 10px;"><button class="layui-btn" lay-submit id="rescan" onclick="rescan()">重新扫描</button></div>
+						
+						<blockquote class="layui-elem-quote"">
+							重新扫描将还原非复制配置
+						</blockquote>
+						<hr class="layui-border-black">
+						<table id="demo" lay-filter="demo"></table>
+					</div>
+				</div>
+			</div>
+		</div>
+</body>
+
+<script id="modifytmpl" type="text/html">
+	<fieldset class="layui-elem-field layui-field-title" style="margin-top: 20px;">
+		<legend>配置</legend>
+	</fieldset>
+	<div style="padding: 0 30px 0 0;text-align: left">
+		<form class="layui-form "  id="editform">
+		<div class="layui-tab" lay-filter="edittab">
+			<ul class="layui-tab-title">
+			  <li class="layui-this">基础配置</li>
+			  <li>GRUB编辑</li>
+			  <li>外部文件</li>
+			</ul>
+			<div class="layui-tab-content">
+				<div class="layui-tab-item layui-show">
+					<div class="layui-form-item">
+						<label class="layui-form-label">配置ID</label>
+						<div class="layui-input-block">
+						<input type="text" name="ipxename" required lay-verify="required" placeholder="请输入配置名称" autocomplete="off" class="layui-input" value="<%% d.ipxename %%>"></input>
+						</div>
+					</div>
+						
+					<div class="layui-form-item">
+						<label class="layui-form-label">镜像名称</label>
+						<div class="layui-input-block">
+							<input type="text" disabled name="isoname" required  lay-verify="required" placeholder="" autocomplete="off" class="layui-input" value="<%% d.isoname %%>"></input>
+						</div>
+					</div>
+					<div class="layui-form-item">
+						<label class="layui-form-label">快捷配置</label>
+						<div class="layui-input-block">
+							<input type="checkbox" name="autoinstall" id="autoinstall" lay-skin="switch" lay-filter="autoinstall" lay-text="自动安装|自动安装" <%%# if (d.autoinstall == "true"){ %%> checked <%%# } %%>>
+							<input type="checkbox" name="CompatibleMode" id="CompatibleMode" lay-skin="switch" lay-filter="CompatibleMode" lay-text="兼容模式|兼容模式" <%%# if (d.CompatibleMode == "true"){ %%> checked <%%# } %%>>
+						</div>
+					</div>
+
+					<div class="layui-form-item" id="autoinstallcfg_item" style="display: <%%# if (d.autoinstall == "true"){ %%> block<%%# }else{%%> none<%%# } %%>">
+						<label class="layui-form-label">安装脚本</label>
+						<div class="layui-input-block">
+							<textarea name="autoinstallcfg" id="autoinstallcfg" placeholder="桌面系统：使用镜像解压出来根目录的ky-installer.cfg。&#13;&#10;服务器系统：先安装一台，复制/root/anaconda-ks.cfg粘贴到此处。" class="layui-textarea" style="height: 360px;" ><%% d.autoinstallcfg %%></textarea>
+						</div>
+
+					</div>
+					
+				</div>
+				<div class="layui-tab-item">
+					<div class="layui-form-item">
+						<label class="layui-form-label">grub配置</label>
+						<div class="layui-input-block">
+						<textarea name="grubcfg" id="grubcfg" placeholder="配置内容" class="layui-textarea" style="height: 360px;" ><%% d.grubcfg %%></textarea>
+						</div>
+					</div>
+				</div>
+				<div class="layui-tab-item">
+					<div class="layui-form-item">
+						<label class="layui-form-label">文件夹名称</label>
+						<div class="layui-input-block">
+						<input type="text" name="extpathname" required lay-verify="required" placeholder="外部文件注入镜像的文件夹名称，不能和镜像内已有文件夹名称重复" autocomplete="off" class="layui-input" value="<%% d.extpathname %%>"></input>
+						</div>
+					</div>
+					<div class="layui-form-item">
+						<label class="layui-form-label">外部文件</label>
+						<div class="layui-input-block">
+						<textarea name="mpxe_extfile" id="mpxe_extfile" placeholder="外部文件将挂载在iso根目录的mpxe_extfile（默认）文件夹下，请输入文件/文件夹绝对路径，一行一个" class="layui-textarea" style="height: 360px;" ><%% d.mpxe_extfile %%></textarea>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="layui-form-item">
+			<div class="layui-input-block">
+				<button class="layui-btn" lay-submit lay-filter="updateinfo">保存</button>
+				<button type="reset" class="layui-btn layui-btn-primary">重置</button>
+			</div>
+		</div>
+			
+		</form>
+	</div>
+
+</script>
+
+<script type="text/html" id="barDemo">
+	<a class="layui-btn layui-btn-xs" lay-event="copy">复制</a>
+	<a class="layui-btn  layui-btn-normal layui-btn-xs" lay-event="edit">编辑</a>
+	<a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+</script>
+
+
+<script>
+	var tableIns
+	var submit
+	var selectconfig
+	var isautoinstall = false
+	function modifyGrubConfig(original,monitorUrl,scriptpath) {
+		const lines = original.split('\n');
+		let currentMenuentry = null;
+		let targetMenuentryIndex = -1;
+		let targetLinuxIndex = -1;
+		
+		// 第一阶段：扫描定位目标
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i].trim();
+			
+			// 检测 menuentry 块开始
+			if (line.startsWith('menuentry')) {
+				currentMenuentry = {
+					start: i,
+					end: -1,
+					title: line.match(/menuentry\s+'([^']+)'|"([^"]+)"/)?.slice(1,3).find(Boolean),
+					hasValidLinux: false
+				};
+			}
+			
+			// 检测 block 结束
+			if (currentMenuentry && line === '}') {
+				currentMenuentry.end = i;
+				
+				// 检查是否包含目标linux行
+				if (currentMenuentry.hasValidLinux) {
+					targetMenuentryIndex = currentMenuentry.start;
+					targetLinuxIndex = currentMenuentry.linuxLineIndex;
+					break; // 找到第一个符合条件的即停止
+				}
+				
+				currentMenuentry = null;
+			}
+			
+			// 在当前的menuentry块中查找目标linux行
+			if (currentMenuentry && !currentMenuentry.hasValidLinux) {
+				if (line.startsWith('linux') && !line.includes('live')) {
+					currentMenuentry.linuxLineIndex = i;
+					currentMenuentry.hasValidLinux = true;
+				}
+			}
+		}
+
+		// 第二阶段：执行修改
+		if (targetMenuentryIndex === -1) {
+			throw new Error('未找到包含有效linux行的menuentry块');
+		}
+
+		return lines.map((line, i) => {
+			// 修改menuentry标题
+			if (i === targetMenuentryIndex) {
+				return line.replace(/(menuentry\s+['"])(.*?)(['"])/, (match, p1, p2, p3) => {
+					return `${p1}${p2} [autoinstall]${p3}`;
+				});
+			}
+			
+			// 修改linux行
+			if (i === targetLinuxIndex) {
+				return line.replace("inst.ks="+monitorUrl,"").replace(/$/, scriptpath);
+			}
+			
+			return line;
+		}).join('\n');
+	}
+	function restoreGrubConfig(modified,monitorUrl) {
+		const lines = modified.split('\n');
+		let restoreTarget = null;
+		let currentBlock = null;
+		
+		// 第一阶段：识别被修改的区块
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i].trim();
+			
+			// 检测 menuentry 块开始
+			if (line.startsWith('menuentry')) {
+				currentBlock = {
+					start: i,
+					end: -1,
+					title: line,
+					modifiedTitle: line.includes('autoinstall'),
+					linuxLines: []
+				};
+				continue;
+			}
+			
+			// 记录块结束位置
+			if (currentBlock && line === '}') {
+				currentBlock.end = i;
+				
+				// 检查是否符合修改特征
+				if (currentBlock.modifiedTitle && currentBlock.linuxLines.some(l => l.modified)) {
+					restoreTarget = currentBlock;
+					break; // 找到第一个符合条件的即停止
+				}
+				
+				currentBlock = null;
+				continue;
+			}
+			
+			// 在块内记录linux行状态
+			if (currentBlock && line.startsWith('linux')) {
+				currentBlock.linuxLines.push({
+					index: i,
+					modified: line.includes('automatic-ubiquity') || line.includes('inst.ks=') 
+				});
+			}
+		}
+
+		// 错误处理
+		if (!restoreTarget) {
+			const hasAnyModification = lines.some(line => 
+				line.includes('autoinstall') || 
+				line.includes('automatic-ubiquity')
+			);
+			
+			if (hasAnyModification) {
+				throw new Error('检测到修改痕迹但无法定位目标区块');
+			}
+			throw new Error('未找到可还原的修改内容');
+		}
+
+		// 第二阶段：执行还原
+		return lines.map((line, i) => {
+			// 还原标题
+			if (i === restoreTarget.start) {
+				return line.replace(/(['"])\s*\[autoinstall\]\s*(['"])/, '\$1\$2')
+						.replace(/\s*autoinstall(['"])/, '\$1')
+						.replace(/(menuentry\s+['"])(.*?)\s+\[autoinstall\](['"])/, '\$1\$2\$3');
+			}
+			
+			// 还原linux行
+			if (restoreTarget.linuxLines.some(l => l.index === i && l.modified)) {
+				return line.replace(/\s+oem-config\/enable=true\s+automatic-ubiquity\s+url=.*?(?=\s|$)/g, '')
+							.replace(/\s+inst.ks=.*?(?=\s|$)/g, " inst.ks="+monitorUrl);
+			}
+			
+			return line;
+		}).join('\n');
+	}
+
+
+	function appendToLinuxLines(text, appendContent) {
+		const lines = text.split('\n');
+		const modifiedLines = lines.map(line => {
+			if (line.trim().toLowerCase().startsWith('linux')) {
+				return line + appendContent;
+			}
+			return line;
+		});
+		return modifiedLines.join('\n');
+	}
+
+	function restoreText(modifiedText, appendContent) {
+		const lines = modifiedText.split('\n');
+		const originalLines = lines.map(line => {
+			if (line.trim().toLowerCase().startsWith('linux')) {
+				return line.replace(appendContent, "");
+			}
+			return line;
+		});
+		return originalLines.join('\n');
+	}
+
+		
+	layui.use(['table', 'laytpl', 'form','element'], function () {
+		var table = layui.table;
+		var laytpl = layui.laytpl;
+		var form = layui.form;
+		var element = layui.element;
+		var formdata = new Object();
+		
+		laytpl.config({
+			open: '<%%',
+			close: '%%>'
+		});
+		
+		//第一个实例
+		tableIns = table.render({
+			elem: '#demo',
+			url: 'getisoipxe',//数据接口,
+			//size: 'sm',
+			skin: 'row',
+			title:'配置文件列表',
+			even: true, //开启隔行背景
+			limit: 20,
+			limits: [1, 20, 50, 100, 200],
+			page: true, //开启分页,
+			text: {
+				none: '无数据，将镜像复制到iso目录后点击重新扫码或重新运行mPXE' //默认：无数据。
+			},
+			cols: [
+				[ //表头
+					{ field: 'ipxename', title: '配置ID', width: 100, sort: true, fixed: 'left' },
+					{ field: 'isoname', title: '镜像名称', minwidth: 500, sort: true},
+					{ field: 'autoinstall', title: '自动安装', width: 100},
+					{ field: 'ipxedetail', title: '配置内容', minwidth: 500, hide: true},
+					{ title: '操作', toolbar: '#barDemo', width: 190 }
+				]
+			]
+		});
+		
+		table.on('tool(demo)', function (obj) {
+			var data = obj.data;
+			if (obj.event === 'del') {
+				layer.confirm('是否删除该记录？', function (index) {
+					$.post("delisoipxe", { "ipxename": obj['data']["ipxename"]}, function (res, status) {
+						json = $.parseJSON(res);
+						if (status == "success") {
+							layui.use('layer', function () {
+								var layer = layui.layer;
+								layer.open({
+									content: json.msg
+									, icon: 0
+									, btn: ['确定']
+									, closeBtn: 2
+									, btnAlign: 'c'
+									, bt1: function (index, layero) {
+										return false
+									}
+								});
+							});
+							obj.del()
+							layer.closeAll('loading');
+						} else {
+							layui.use('layer', function () {
+								var layer = layui.layer;
+								layer.msg("连接服务器失败");
+								layer.closeAll('loading');
+							});
+						}
+					});
+					layer.close(index);
+				});
+			} else if (obj.event === 'edit') {
+				var getTpl = modifytmpl.innerHTML;
+				laytpl.config({
+					open: '<%%',
+					close: '%%>'
+				});
+				if(obj['data']["autoinstall"]=="true"){
+					isautoinstall = true
+					height="750px"
+				}else{
+					height="360px"
+				}
+				obj['data']['CompatibleMode']="false";
+				if (obj['data']['grubcfg'].includes("initcall_blacklist=ip_auto_config")) {
+					obj['data']['CompatibleMode']="true";
+				}
+				selectconfig=obj['data']
+				laytpl(getTpl).render(obj['data'], function (html) {
+					layer.open({
+						type: 1,
+						shade: 0.3,
+						shadeClose: true,
+						area: ['1024px', height],
+						title: false,
+						content: html
+					});
+					form.render();
+				});
+			} else if (obj.event === 'copy') {
+				selectconfig=obj['data']
+				obj['data']["ipxename"] = obj['data']["ipxename"]+"_2"
+				var getTpl = modifytmpl.innerHTML;
+				laytpl.config({
+					open: '<%%',
+					close: '%%>'
+				});
+				if(obj['data']["autoinstall"]=="true"){
+					height="750px"
+				}else{
+					height="360px"
+				}
+				obj['data']['CompatibleMode']="false";
+				if (obj['data']['grubcfg'].includes("initcall_blacklist=ip_auto_config")) {
+					obj['data']['CompatibleMode']="true";
+				}
+				laytpl(getTpl).render(obj['data'], function (html) {
+					layer.open({
+						type: 1,
+						shade: 0.3,
+						shadeClose: true,
+						area: ['1024px', height],
+						title: false,
+						content: html
+					});
+					form.render();
+				});
+			}
+		});
+		function arr1(arr) {
+			return Array.from(new Set(arr))
+		}
+		form.on('switch(autoinstall)', function(data){
+			data.elem.value=data.elem.checked;
+			var monitorUrl = "http://SERVER_IP_ADDRESS:HTTP_PORT/monitor/monitor.cfg";
+			var autoUrl = "http://SERVER_IP_ADDRESS:HTTP_PORT/config/"+selectconfig["ipxename"]+"/autoinstall.cfg";
+			if (data.elem.checked){
+				isautoinstall = true
+				document.getElementById("autoinstallcfg_item").style.display='block';
+				document.getElementsByClassName("layui-layer-page")[0].style.height='750px';
+				document.getElementsByClassName("layui-layer-page")[0].style.top=(window.innerHeight-750)/2+"px";
+				document.getElementsByClassName("layui-layer-content")[0].style.height='750px';
+				if(selectconfig["class"]=="Preseed"){
+					//桌面automatic-ubiquity url=http://192.168.1.1:80/config/xxxxxxx/autoinstall.cfg
+					//oem-config/enable=true   oem模式，安装完系统后设置新建用户
+					scriptpath=" oem-config/enable=true automatic-ubiquity url="+ autoUrl
+				}else if(selectconfig["class"]=="Kickstart"){
+					//服务器 inst.ks=http://192.168.127.1:80/monitor/autoinstall.cfg
+					scriptpath=" inst.ks="+ autoUrl
+				}
+				document.getElementById("grubcfg").textContent=modifyGrubConfig(selectconfig["grubcfg"],monitorUrl,scriptpath)
+				selectconfig["grubcfg"]=modifyGrubConfig(selectconfig["grubcfg"],monitorUrl,scriptpath)
+			}else{
+				isautoinstall = false
+				document.getElementById("autoinstallcfg_item").style.display='none';
+				document.getElementsByClassName("layui-layer-page")[0].style.height='360px';
+				document.getElementsByClassName("layui-layer-page")[0].style.top=(window.innerHeight-360)/2+"px";
+				document.getElementsByClassName("layui-layer-content")[0].style.height='360px';
+				document.getElementById("grubcfg").textContent=restoreGrubConfig(selectconfig["grubcfg"],monitorUrl)
+				selectconfig["grubcfg"]=restoreGrubConfig(selectconfig["grubcfg"],monitorUrl)
+			}
+		});
+		form.on('switch(CompatibleMode)', function(data){
+			data.elem.value=data.elem.checked;
+			scriptpath=" initcall_blacklist=ip_auto_config"
+			if (data.elem.checked){
+				document.getElementById("grubcfg").textContent=appendToLinuxLines(selectconfig["grubcfg"],scriptpath)
+				selectconfig["grubcfg"]=appendToLinuxLines(selectconfig["grubcfg"],scriptpath)
+			}else{
+				document.getElementById("grubcfg").textContent=restoreText(selectconfig["grubcfg"],scriptpath)
+				selectconfig["grubcfg"]=restoreText(selectconfig["grubcfg"],scriptpath)
+			}
+		});
+		form.on('submit(updateinfo)', function (data) {
+			layer.load(1, {
+				shade: [0.5, '#fff'], 
+				content: '请稍候',
+				success: function (layerContentStyle) {
+					layerContentStyle.find('.layui-layer-content').css({
+						'padding-top': '35px',
+						'text-align': 'left',
+						'width': '120px'
+					});
+				}
+			});
+			data.field.grubcfg=window.btoa(unescape(encodeURIComponent(data.field.grubcfg)))
+			data.field.autoinstallcfg=window.btoa(unescape(encodeURIComponent(data.field.autoinstallcfg)))
+			data.field.autoinstall = $("#autoinstall ").is(':checked'); 
+			if(data.field.autoinstall==true && data.field.autoinstallcfg==""){
+				layer.msg("自动安装脚本为空");
+				layer.closeAll('loading');
+				return false
+			}
+			$.post("setisoipxe",data.field, function (res, status) {
+				if (status == "success") {
+					setTimeout(() => {
+						layer.closeAll('loading');
+						location.reload(true);
+					}, "2000");
+				} else {
+					layui.use('layer', function () {
+						var layer = layui.layer;
+						layer.msg("连接服务器失败");
+						layer.closeAll('loading');
+					});
+				}
+			});
+			return false
+		});
+		element.on('tab(edittab)', function(data){
+			if(isautoinstall){
+				indexheight=720
+			}else{
+				indexheight=360
+			}
+			if(data.index==0){
+				document.getElementsByClassName("layui-layer-page")[0].style.height=indexheight+'px';
+				document.getElementsByClassName("layui-layer-page")[0].style.top=(window.innerHeight-indexheight)/2+"px";
+				document.getElementsByClassName("layui-layer-content")[0].style.height=indexheight+'px';
+			}else if(data.index==1){
+				document.getElementsByClassName("layui-layer-page")[0].style.height='600px';
+				document.getElementsByClassName("layui-layer-page")[0].style.top=(window.innerHeight-600)/2+"px";
+				document.getElementsByClassName("layui-layer-content")[0].style.height='600px';
+			}else if(data.index==2){
+				document.getElementsByClassName("layui-layer-page")[0].style.height='620px';
+				document.getElementsByClassName("layui-layer-page")[0].style.top=(window.innerHeight-620)/2+"px";
+				document.getElementsByClassName("layui-layer-content")[0].style.height='620px';
+			}
+		});
+
+		});
+	var rescan = function(){
+		layer.load(1, {
+				shade: [0.5, '#fff'], 
+				content: '请稍候',
+				success: function (layerContentStyle) {
+					layerContentStyle.find('.layui-layer-content').css({
+						'padding-top': '35px',
+						'text-align': 'left',
+						'width': '120px'
+					});
+				}
+			});
+		layer.confirm('重新扫描将丢失非复制配置，是否继续？', function (index) {
+			$.get("rescan", {}, function (res, status) {
+				if (status == "success") {
+					console.log(res.msg)
+						setTimeout(() => {
+							location.reload(true);
+						}, "5000");
+				} else {
+					layui.use('layer', function () {
+						var layer = layui.layer;
+						layer.msg("连接服务器失败");
+						layer.closeAll('loading');
+					});
+				}
+			});
+			layer.close(index);
+		});
+	}
+
+</script>
+</html>

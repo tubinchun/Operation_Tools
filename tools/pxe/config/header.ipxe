@@ -1,0 +1,25 @@
+#!ipxe
+#============== Set Variables ===============
+#设置默认时间
+   set menu-timeout 1024000
+#判断启动平台的方式，设定默认启动项
+#   iseq ${platform} efi && set menu-default win64 || set menu-default win32
+   set menu-default MENU_DEFAULT
+   set menu-timeout MENU_TIMEOUT
+#将http用xieyi代替
+   set xieyi:string http
+#自动获取IP
+   dhcp
+#测试是否存在dhcp服务器，否则指定next-server为服务器IP
+   isset ${next-server} || set next-server SERVER_IP_ADDRESS
+
+   #iseq ${buildarch} x86_64 &&  console --picture http://${next-server}:HTTP_PORT/images/background.png || goto start
+   console --picture http://${next-server}:HTTP_PORT/images/background.png || goto start
+
+#============== Set Menu ===============
+#菜单开始标记
+:start
+#显示menu标题，并显示平台和ip地址
+  menu Misstar-PXE (${ip})  onion@misstar.com
+#列项，可以指定热键，别名，添加--gap --分割线
+  item --gap --             -------------------------------- ${product} ---------------------------

@@ -1,0 +1,1 @@
+/tmp/pxenfsroot *(ro,no_subtree_check,crossmnt)  ###MisstarPXE

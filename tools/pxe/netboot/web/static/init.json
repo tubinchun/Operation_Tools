@@ -1,0 +1,65 @@
+{
+  "clearInfo": {
+    "clearUrl": "api/clear.json"
+  },
+  "homeInfo": {
+    "title": "首页",
+    "icon": "fa fa-home",
+    "href": "home.html"
+  },
+  "logoInfo": {
+    "title": "觅星·云刻",
+    "image": "static/admin/images/logo.png",
+    "href": ""
+  },
+  "menuInfo": {
+    "currency": {
+      "title": "云刻-信创PXE",
+      "icon": "fa fa-apple",
+      "child": [
+        {
+          "title": "服务状态",
+          "href": "home.html",
+          "icon": "fa fa-home",
+          "target": "_self"
+        },
+        {
+          "title": "终端列表",
+          "href": "clientlist.html",
+          "icon": "fa fa-television",
+          "target": "_self"
+        },
+        {
+          "title": "配置管理",
+          "href": "manage.html",
+          "icon": "fa fa-file-zip-o",
+          "target": "_self"
+        },
+        {
+          "title": "高级设置",
+          "href": "server.html",
+          "icon": "fa fa-shopping-bag",
+          "target": "_self"
+        },
+        {
+          "title": "黑白名单",
+          "href": "blacklist.html",
+          "icon": "fa fa-shield",
+          "target": "_self"
+        },
+        {
+          "title": "服务日志",
+          "href": "logs.html",
+          "icon": "fa fa-file-text-o",
+          "target": "_self"
+        },
+        {
+          "title": "关于",
+          "href": "about.html",
+          "icon": "fa fa-newspaper-o",
+          "target": "_self"
+        }
+      ]
+    }
+  }
+}

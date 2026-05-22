@@ -1,0 +1,6 @@
+bootentry Try Kylin Desktop V10
+{
+boot vmlinuz
+initrd initrd.img
+args boot=casper ro locale=zh_CN KEYBOARDTYPE=pc KEYTABLE=us console=tty audit=0 netboot=nfs nfsroot=192.168.1.1:/opt/nfs/mips64-kylin/ security=
+}

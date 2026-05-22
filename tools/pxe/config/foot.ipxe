@@ -1,0 +1,45 @@
+  item --gap --             -------------------------------- Advanced -----------------------------
+  item --key h local        [H]Boot from local drive
+  item --key s shell 		[S] Drop to iPXE Shell
+  item --key r reboot		[R] Reboot the Computer
+  item --key x exit			[X] Exit iPXE and Continue BIOS Booting
+  item --key c config       [C]Configure settings
+
+#在默认时间到时选择默认启动项
+  choose --timeout ${menu-timeout} --default ${menu-default} selected
+  goto ${selected}
+
+#============ Main Menu Options =============
+#uefi 模式下，需要在kernel指定initrd
+
+#PE镜像启动代码块==============================
+
+:retry
+  imgfree
+  prompt Error! press any key to retry
+  goto start
+#PE镜像启动代码块==============================
+
+
+#从本地硬盘启动
+:local
+  sanboot --no-describe --drive 0x80
+
+#打开命令行
+:shell
+  echo Type 'exit' to go back to the menu.
+  shell
+  goto start
+
+#重启
+:reboot
+  reboot
+
+#退出
+:exit
+  exit
+
+#配置
+:config
+  config
+  goto start

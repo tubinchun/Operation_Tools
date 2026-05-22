@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>系统日志 - M-PXE</title>
+    <style>
+        .log-container { padding: 15px; }
+        .log-textarea { 
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            max-width: 1200px;
+            height: 800px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .toolbar { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="log-container">
+        <textarea class="layui-textarea log-textarea" id="logContent" readonly></textarea>
+    </div>
+    <script>
+        let eventSource = null;
+        let currentPos = 0;
+        
+        layui.use([], function() {
+            loadFullLog();
+            connectSSE();
+        });
+        
+        function stopSSE() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+        }
+        
+        window.addEventListener('beforeunload', stopSSE);
+        window.addEventListener('unload', stopSSE);
+        window.addEventListener('pagehide', stopSSE);
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'hidden') {
+                stopSSE();
+            }
+        });
+        
+        function connectSSE() {
+            eventSource = new EventSource('/web/log/sse');
+            eventSource.onmessage = function(event) {
+                const textarea = document.getElementById('logContent');
+                textarea.value += event.data + '\n';
+                textarea.scrollTop = textarea.scrollHeight;
+            };
+            eventSource.onerror = function() {
+                eventSource.close();
+                setTimeout(connectSSE, 1000);
+            };
+        }
+        
+        function scrollToBottom() {
+            const textarea = document.getElementById('logContent');
+            textarea.scrollTop = textarea.scrollHeight;
+        }
+        
+        function loadFullLog() {
+            fetch('/web/log?lines=500')
+                .then(r => r.json())
+                .then(res => {
+                    if(res.code === 0) {
+                        document.getElementById('logContent').value = res.data;
+                        currentPos = res.data.length;
+                        scrollToBottom();
+                    }
+                });
+        }
+        
+        function pollLog() {
+            fetch('/web/log/stream?pos=' + currentPos)
+                .then(r => r.json())
+                .then(res => {
+                    if(res.code === 0) {
+                        const textarea = document.getElementById('logContent');
+                        if(res.rotated) {
+                            textarea.value = res.data;
+                        } else if(res.data) {
+                            textarea.value += res.data;
+                        }
+                        currentPos = res.pos;
+                        scrollToBottom();
+                    }
+                    timer = setTimeout(pollLog, 500);
+                })
+                .catch(() => {
+                    timer = setTimeout(pollLog, 1000);
+                });
+        }
+    </script>
+</html>

@@ -1,0 +1,15 @@
+#!/bin/bash
+set -e
+
+echo "配置 kylin-system-tools..."
+
+# 设置脚本执行权限
+chmod +x /usr/share/kylin-system-tools/core/kylin_desktop_system_info.sh
+chmod +x /usr/share/kylin-system-tools/core/fix_printer.sh
+
+# 创建命令别名
+if [ ! -f /usr/bin/kylintools ]; then
+    ln -s /usr/share/kylin-system-tools/kylintools.py /usr/bin/kylintools
+fi
+
+echo "kylin-system-tools 安装完成"

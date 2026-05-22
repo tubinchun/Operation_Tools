@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh" style="height: 100%;">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport"
+		content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<link rel="bookmark" type="image/x-icon" href="favicon.ico" />
+	<link rel="shortcut icon" href="favicon.ico">
+	<link rel="icon" href="favicon.ico">
+</head>
+<body style="text-align: center;height: 100%;">
+	<div style="min-height: 100%;max-width: 1200px;margin: 20px;">
+				<div style="padding: 10px;">
+						<div id="server" lay-filter="server"></div>
+				</div>
+</body>
+
+<script id="statustmpl" type="text/html">
+		  <div style="padding: 50px 30px;height: 250px;">
+			   <div style="width: 150px; height: 150px; line-height: 150px; margin: 0 auto 10px; text-align: center; background-color: <%% d.servicestyle %%>; cursor: pointer; color: #fff; border-radius: 50%;">
+				   <p id="status"><%% d.servicestatus %%></p>
+			   </div>
+		  </div>
+</script>
+
+<script  id="servertmpl" type="text/html">
+	<%%# var log_levels=["DEBUG","INFO","WARNING","ERROR","CRITICAL"] %%>
+	<form class="layui-form layui-form-pane" action="">
+		<div class="layui-form-item">
+			<label class="layui-form-label">HTTP端口</label>
+			<div class="layui-input-block">
+				<input type="text" name="http_port" required lay-verify="required|number" autocomplete="off" class="layui-input" value="<%% d.config.HTTP_PORT %%>" >
+			</div>
+		</div>
+		<div class="layui-form-item">
+			<label class="layui-form-label">默认镜像</label>
+			<div class="layui-input-block">
+				<select name='menu_default' lay-filter="addselect" lay-search=''>
+					<%%# layui.each(d.data,function(index, item){ %%>
+						<option value="<%% item['ipxename'] %%>" <%%# if (d.config.MENU_DEFAULT==item['ipxename']){ %%> selected="selected" <%%# } %%>><%% item['ipxename'] %%>：<%% item['isoname'] %%></option>
+					<%%# }); %%>
+							<option value="" <%%# if (d.config.MENU_DEFAULT==""){ %%> selected="selected" <%%# } %%>></option>
+				</select>
+			</div>
+		</div>
+
+		<div class="layui-form-item">
+			<label class="layui-form-label">等待时间</label>
+			<div class="layui-input-block">
+				<input type="text" name="menu_timeout" required lay-verify="required" autocomplete="off" class="layui-input" value="<%% d.config.MENU_TIMEOUT %%>" >
+				<p style="color: gray;">单位：秒</p>
+			</div>
+		</div>
+			
+		<div class="layui-form-item">
+			<label class="layui-form-label">日志级别</label>
+			<div class="layui-input-block">
+				<select name='log_level' lay-filter="addselect" lay-search=''>
+					<%%# layui.each(log_levels, function(index, item){ %%>
+						<option value="<%% item %%>" <%%# if (d.config.LOG_LEVEL==item){ %%> selected="selected" <%%# } %%>><%% item %%></option>
+					<%%# }); %%>
+							<option value="" <%%# if (d.config.LOG_LEVEL==""){ %%> selected="selected" <%%# } %%>></option>
+				</select>
+					<p style="color: gray;">DEBUG > INFO > WARNING > ERROR > CRITICAL，级别越高越详细</p>
+			</div>
+		</div>
+
+		<div class="layui-form-item">
+			<div class="layui-input-block">
+				<button class="layui-btn" lay-submit lay-filter="updateinfo">保存并重启服务</button>
+				<button type="reset" class="layui-btn layui-btn-primary">重置</button>
+			</div>
+		</div>
+			
+	</form>
+</script>
+
+<script>
+
+	layui.use(['laytpl', 'form'], function () {
+		var laytpl = layui.laytpl;
+		var form = layui.form;
+		
+		laytpl.config({
+			open: '<%%',
+			close: '%%>'
+		});
+		$.getJSON("get_server_info", {}, function (data, status) {
+			if (status == "success") {
+				if(data.code==0){
+					var view = document.getElementById('server');
+					var getTpl = servertmpl.innerHTML;
+					laytpl(getTpl).render(data, function (html) {
+						view.innerHTML = html;
+						form.render();
+					});
+				}
+			} else {
+				layui.use('layer', function () {
+					var layer = layui.layer;
+					layer.msg("连接服务器失败");
+					layer.closeAll('loading');
+				});
+			}
+		});
+		
+		form.render();		
+		function arr1(arr) {
+			return Array.from(new Set(arr))
+		}
+
+		form.on('submit(updateinfo)', function (data) {
+			layer.load(1, {
+				shade: [0.5, '#fff'], //0.1透明度的白色背景
+				content: '请稍候',
+				success: function (layerContentStyle) {
+					layerContentStyle.find('.layui-layer-content').css({
+						'padding-top': '35px',
+						'text-align': 'left',
+						'width': '120px'
+					});
+				}
+			});
+			$.post("setserver",data.field, function (res, status) {
+					if (status == "success") {
+						setTimeout(() => {
+							layer.closeAll('loading');
+							window.location.port = data.field.http_port;
+						}, "10000");
+					} else {
+						layui.use('layer', function () {
+							var layer = layui.layer;
+							layer.msg("连接服务器失败");
+							layer.closeAll('loading');
+						});
+					}
+				});
+			return false;
+
+		});
+
+	});
+
+</script>
+</html>

@@ -1,0 +1,17 @@
+[Unit]
+Description=Kylin Clean Tools Service
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/kylin-clean/clean_linux.py
+WorkingDirectory=/opt/kylin-clean
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+ExecStartPre=/bin/sleep 10
+
+[Install]
+WantedBy=multi-user.target

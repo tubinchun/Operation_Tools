@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh" style="height: 100%;">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport"
+		content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="static/layui/css/layui.css" media="all">
+	<link rel="bookmark" type="image/x-icon" href="favicon.ico" />
+	<link rel="shortcut icon" href="favicon.ico">
+	<link rel="icon" href="favicon.ico">
+</head>
+<style>
+	        :root {
+            --primary-color: #2c3e50;
+            --success-color: #27ae60;
+            --danger-color: #e74c3c;
+        }
+	 .service-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .service-card {
+            background: #f5f6fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            transition: transform 0.2s;
+			display: grid;
+			align-items: center;
+        }
+        .service-card.running {
+            border-left: 5px solid var(--success-color);
+			border-right: 5px solid var(--success-color);
+        }
+        .service-card.failed {
+            border-left: 5px solid var(--danger-color);
+			border-right: 5px solid var(--danger-color);
+        }
+		.dashboard {
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+</style>
+<body style="text-align: center;height: 100%;">
+	<div style="min-height: 100%;max-width: 1200px;margin: 20px;">
+		<div  id="service"></div>
+	</div>
+</body>
+
+<script  id="servicetmpl" type="text/html">
+	<div class="layui-panel">
+	<div class="dashboard" style="padding: 30px;">
+		   <div style="padding: 50px 30px;height: 250px;">
+			   <div style="padding: 0 30px 0 0;text-align: left">
+				   <form class="layui-form layui-form-pane" action="">		
+				   <div class="layui-form-item">
+					 <label class="layui-form-label">本机IP
+					 </label>
+					 <div class="layui-input-block">
+					   <select name='ip_address' lay-filter="addselect" lay-search=''>
+						   <%%# layui.each(d.data, function(index, item){ %%>
+							   <option value="<%% item.ip_address %%>" <%%# if (d.config.DHCP_SERVER_IP==item.ip_address){ %%> selected="selected" <%%# } %%>><%% item.ip_address %%></option>
+						   <%%# }); %%>
+								   <option value="" <%%# if (d.config.DHCP_SERVER_IP==""){ %%> selected="selected" <%%# } %%>></option>
+					   </select>
+					 </div>
+				   </div>
+			   
+					   <div class="layui-form-item">
+					   <label class="layui-form-label">网卡名称</label>
+					   <div class="layui-input-block">
+						 <input type="text" disabled name="name" required  lay-verify="required" placeholder="" class="layui-input" value="<%% d.config.DHCP_SERVER_NIC %%>"></input>
+					   </div>
+					 </div>
+					   <div class="layui-form-item">
+					   <label class="layui-form-label">子网掩码</label>
+					   <div class="layui-input-block">
+						 <input type="text" name="netmask" disabled required  lay-verify="required" placeholder="" class="layui-input" value="<%% d.config.DHCP_SUBNET %%>"></input>
+					   </div>
+					 </div>
+					 <div class="layui-form-item">
+						<label class="layui-form-label">网关</label>
+						<div class="layui-input-block">
+						  <input type="text" name="gateway" required  lay-verify="required" placeholder="" class="layui-input" value="<%% d.config.DHCP_ROUTER %%>"></input>
+						</div>
+					  </div>
+					 <div class="layui-form-item"> <label class="layui-form-label">IP地址池</label>
+					   <div class="layui-input-inline" style="width: 150px;">
+						<input type="text" name="ip_start"   lay-verify="required" placeholder="" autocomplete="off" class="layui-input" value="<%% d.config.DHCP_OFFER_BEGIN %%>">
+					   </div>
+					   <div class="layui-form-mid">
+						-
+					   </div>
+					   <div class="layui-input-inline" style="width: 150px;">
+						<input type="text" name="ip_end"   lay-verify="required" placeholder="" autocomplete="off" class="layui-input"  value="<%% d.config.DHCP_OFFER_END %%>">
+					   </div>
+					  </div>
+					  <div class="layui-form-item">
+					   <div class="layui-input-block">
+						   <button class="layui-btn" lay-submit lay-filter="saveandrestart">保存并重启服务</button>
+					   </div>
+				   </div>
+					 </div>
+					   
+				   </form>
+			   
+				   </div>
+				   <div class="service-grid">
+					<div class="service-card <%%# if (d.servicestatus.nfs == "running"){ %%> running<%%# }else if (d.servicestatus.nfs == "not running"){%%> failed<%%# } %%>" id="nfsStatus">
+						<h3>NFS服务</h3>
+					</div>
+					<div class="service-card <%%# if (d.servicestatus.dhcp == "running"){ %%> running<%%# }else if (d.servicestatus.dhcp == "not running"){%%> failed<%%# } %%>" id="dhcpStatus">
+						<h3>DHCP服务</h3>
+					</div>
+					<div class="service-card <%%# if (d.servicestatus.http == "running"){ %%> running<%%# }else if (d.servicestatus.http == "not running"){%%> failed<%%# } %%>" id="httpStatus">
+						<h3>HTTP服务</h3>
+					</div>
+					<div class="service-card <%%# if (d.servicestatus.tftp == "running"){ %%> running<%%# }else if (d.servicestatus.tftp == "not running"){%%> failed<%%# } %%>" id="tftpStatus">
+						<h3>TFTP服务</h3>
+					</div>
+				</div>
+			</div>
+			</div>
+</script>
+
+<script>
+	var tableIns
+	var submit
+	var niclists= new Object();
+
+	layui.use(['table', 'laytpl', 'form'], function () {
+		var table = layui.table;
+		var laytpl = layui.laytpl;
+		var form = layui.form;
+		var formdata = new Object();
+		
+		laytpl.config({
+			open: '<%%',
+			close: '%%>'
+		});
+		$.getJSON("get_info", {}, function (data, status) {
+			if (status == "success") {
+				if(data.code==0){
+					niclists["data"]=data.data
+					niclists["servicestatus"]=data.servicestatus
+					niclists["config"]=new Object
+					var view = document.getElementById('service');
+					var getTpl = servicetmpl.innerHTML;
+					laytpl(getTpl).render(data, function (html) {
+						view.innerHTML = html;
+						form.render();
+					});
+				}
+			} else {
+				layui.use('layer', function () {
+					var layer = layui.layer;
+					layer.msg("连接服务器失败");
+					layer.closeAll('loading');
+				});
+			}
+		});
+		form.on('select(addselect)', function(data){
+			niclists["data"].forEach(element => {
+				if(element["ip_address"]==data.value){
+					var view = document.getElementById('service');
+					niclists["config"]["DHCP_SERVER_NIC"]=element["name"]
+					niclists["config"]["ip_address"]=element["ip_address"]
+					niclists["config"]["model"]=element["model"]
+					niclists["config"]["DHCP_SUBNET"]=element["netmask"]
+					niclists["config"]["DHCP_ROUTER"]=element["ip_address"]
+					niclists["config"]["DHCP_SERVER_IP"]=data.value
+					ipSegments=data.value.split('.')
+					ipSegments[ipSegments.length - 1] = '100';
+					niclists["config"]["DHCP_OFFER_BEGIN"]=ipSegments.join('.');
+					ipSegments[ipSegments.length - 1] = '200';
+					niclists["config"]["DHCP_OFFER_END"]=ipSegments.join('.');
+					var view = document.getElementById('service');
+					var getTpl = servicetmpl.innerHTML;
+					laytpl(getTpl).render(niclists, function (html) {
+						view.innerHTML = html;
+						form.render();
+					});
+				}
+			});
+		});
+		form.on('submit(saveandrestart)', function (data) {
+			layer.load(1, {
+				shade: [0.5, '#fff'], 
+				content: '请稍候',
+				success: function (layerContentStyle) {
+					layerContentStyle.find('.layui-layer-content').css({
+						'padding-top': '35px',
+						'text-align': 'left',
+						'width': '120px'
+					});
+				}
+			});
+			console.log(data)
+			$.post("saveandrestart",data.field, function (res, status) {
+					if (status == "success") {
+						layui.use('layer', function () {
+							console.log(res.msg)
+						});
+						setTimeout(() => {
+							if(data.field.ip_address==window.location.host){
+								layer.closeAll('loading');
+								location.reload(true);
+							}else{
+								window.location.href="http://"+data.field.ip_address+":"+window.location.port
+							}
+						}, "5000");
+					} else {
+						layui.use('layer', function () {
+							var layer = layui.layer;
+							layer.msg("连接服务器失败");
+							layer.closeAll('loading');
+						});
+					}
+				});
+			return false;
+
+		});
+
+		form.render();
+	});
+		
+</script>
+</html>
