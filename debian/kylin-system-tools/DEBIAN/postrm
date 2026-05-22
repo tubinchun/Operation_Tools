@@ -1,0 +1,63 @@
+#!/bin/bash
+# postrm script for kylin-system-tools
+
+remove_desktop_shortcut() {
+    local shortcut_name="kylin-system-tools.desktop"
+    
+    # 删除所有用户桌面上的快捷方式
+    for user_dir in /home/*; do
+        if [ ! -d "$user_dir" ]; then
+            continue
+        fi
+        
+        # 尝试英文和中文桌面目录
+        local desktop_dirs=("$user_dir/Desktop" "$user_dir/桌面")
+        
+        for desktop_dir in "${desktop_dirs[@]}"; do
+            if [ -d "$desktop_dir" ]; then
+                local desktop_shortcut="$desktop_dir/$shortcut_name"
+                if [ -f "$desktop_shortcut" ]; then
+                    rm -f "$desktop_shortcut" 2>/dev/null || true
+                fi
+            fi
+        done
+    done
+}
+
+case "$1" in
+    remove)
+        # 停止并禁用 kylin-clean-tools 服务
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop kylin-clean-tools.service 2>/dev/null || true
+            systemctl disable kylin-clean-tools.service 2>/dev/null || true
+            systemctl daemon-reload 2>/dev/null || true
+        fi
+
+        # 删除桌面图标快捷方式
+        remove_desktop_shortcut
+        ;;
+    purge)
+        # 停止并禁用 kylin-clean-tools 服务
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop kylin-clean-tools.service 2>/dev/null || true
+            systemctl disable kylin-clean-tools.service 2>/dev/null || true
+            systemctl daemon-reload 2>/dev/null || true
+        fi
+
+        # 删除桌面图标快捷方式
+        remove_desktop_shortcut
+
+        # 移除配置和数据
+        rm -rf /etc/kylin-system-tools 2>/dev/null || true
+        rm -rf /var/log/kylin-system-tools 2>/dev/null || true
+        rm -rf /opt/kylin-clean 2>/dev/null || true
+        ;;
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

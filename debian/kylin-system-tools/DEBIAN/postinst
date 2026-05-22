@@ -1,0 +1,95 @@
+#!/bin/bash
+# postinst script for kylin-system-tools
+
+create_desktop_shortcut() {
+    local desktop_file="/usr/share/applications/kylin-system-tools.desktop"
+    local shortcut_name="kylin-system-tools.desktop"
+    
+    # 检查源文件是否存在
+    if [ ! -f "$desktop_file" ]; then
+        echo "警告: 源桌面文件 $desktop_file 不存在" >&2
+        return
+    fi
+    
+    # 为所有有桌面目录的用户创建快捷方式
+    for user_dir in /home/*; do
+        if [ ! -d "$user_dir" ]; then
+            continue
+        fi
+        
+        # 尝试英文和中文桌面目录
+        local desktop_dirs=("$user_dir/Desktop" "$user_dir/桌面")
+        
+        for desktop_dir in "${desktop_dirs[@]}"; do
+            if [ -d "$desktop_dir" ]; then
+                local desktop_shortcut="$desktop_dir/$shortcut_name"
+                
+                # 使用复制而不是符号链接，更可靠
+                cp -f "$desktop_file" "$desktop_shortcut"
+                
+                # 设置正确的所有者和权限
+                local user=$(basename "$user_dir")
+                chown "$user:$user" "$desktop_shortcut" 2>/dev/null || true
+                chmod 755 "$desktop_shortcut" 2>/dev/null || true
+            fi
+        done
+    done
+    
+    # 为当前用户（如果不是root）创建桌面快捷方式
+    if [ "$SUDO_USER" ] && [ -d "/home/$SUDO_USER" ]; then
+        local desktop_dirs=("/home/$SUDO_USER/Desktop" "/home/$SUDO_USER/桌面")
+        
+        for desktop_dir in "${desktop_dirs[@]}"; do
+            if [ -d "$desktop_dir" ]; then
+                local user_desktop="$desktop_dir/$shortcut_name"
+                cp -f "$desktop_file" "$user_desktop"
+                chown "$SUDO_USER:$SUDO_USER" "$user_desktop" 2>/dev/null || true
+                chmod 755 "$user_desktop" 2>/dev/null || true
+            fi
+        done
+    fi
+}
+
+case "$1" in
+    configure)
+        # 设置权限
+        chmod 755 /usr/bin/kylintools
+        chmod 755 /usr/bin/kylin-usb-tool 2>/dev/null || true
+
+        # 创建日志目录
+        mkdir -p /var/log/kylin-system-tools
+        chown root:root /var/log/kylin-system-tools
+        chmod 755 /var/log/kylin-system-tools
+
+        # 更新图标缓存
+        if command -v update-icon-caches >/dev/null 2>&1; then
+            update-icon-caches /usr/share/icons/hicolor/ 2>/dev/null || true
+        fi
+
+        # 更新桌面数据库
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database /usr/share/applications/ 2>/dev/null || true
+        fi
+
+        # 启用服务（如果systemd可用）
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload 2>/dev/null || true
+            systemctl enable kylin-clean-tools.service 2>/dev/null || true
+            systemctl start kylin-clean-tools.service 2>/dev/null || true
+        fi
+
+        # 创建桌面图标快捷方式
+        create_desktop_shortcut
+
+        echo "麒麟运维百宝箱安装完成"
+        echo "运行命令: kylintools"
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

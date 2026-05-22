@@ -1,0 +1,46 @@
+# 编译后的Python文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 虚拟环境
+venv/
+env/
+.venv/
+
+# IDE配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 构建输出
+output/
+debian/pkg/
+*.deb
+
+# 日志文件
+*.log
+var/log/
+
+# 临时文件
+*.tmp
+*.bak
+*.backup
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 测试文件
+*.test
+*.coverage
+htmlcov/
+
+# 其他
+*.egg-info/
+.tox/
+.cache/
